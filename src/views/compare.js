@@ -16,7 +16,7 @@ export function renderCompare(root, arg) {
       cover
         ? h('button.cmp-cover', { 'aria-label': `Open ${c.name} images`, onclick: () => openLightbox(c.images, c.images.indexOf(cover)) },
             h('img', { alt: '', 'data-path': cover.path, 'data-thumb': cover.thumb_path, style: `aspect-ratio:${cover.width}/${cover.height}` }))
-        : h('div.cmp-cover.placeholder', icon('image')),
+        : h('div.cmp-cover.placeholder', 'No image'),
       c.images.length > 1
         ? h('div.cmp-strip', c.images.map((im, i) => h('button', { 'aria-label': `Image ${i + 1}`, onclick: () => openLightbox(c.images, i) },
             h('img', { alt: '', 'data-thumb': im.thumb_path || im.path }))))
@@ -24,10 +24,11 @@ export function renderCompare(root, arg) {
       h('div.cmp-head',
         h('h2', h('a', { href: `#/c/${c.id}` }, c.name)),
         h(`button.icon-btn.star-btn${c.is_favorite ? '.on' : ''}`, {
+          'aria-pressed': String(!!c.is_favorite),
           'aria-label': c.is_favorite ? 'Remove from favorites' : 'Add to favorites',
           onclick: () => toggleFavorite(c, rerender).catch(errorToast),
         }, icon('star'))),
-      c.tags?.length ? h('div.chips', c.tags.map((t) => h('span.chip', t))) : null,
+      c.tags?.length ? h('div.chips.inline', c.tags.map((t) => h('span.chip', t))) : null,
       h('h4.label', 'Notes'),
       c.notes?.trim() ? h('div.notes', c.notes) : h('p.muted', '—'),
       links.length ? [h('h4.label', 'Sources'), h('ul.links', links.map((href) => h('li', h('a', { href, target: '_blank', rel: 'noopener noreferrer' }, icon('link'), prettyUrl(href)))))] : null,
