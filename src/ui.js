@@ -1,0 +1,121 @@
+// Tiny DOM helpers — no framework needed.
+
+/** h('div.card#x', {onclick, ...attrs}, ...children) */
+export function h(tag, props = {}, ...children) {
+  if (props == null || typeof props !== 'object' || props instanceof Node || Array.isArray(props)) {
+    children.unshift(props);
+    props = {};
+  }
+  const [, name = 'div', rest = ''] = tag.match(/^([a-z0-9-]*)(.*)$/i);
+  const el = document.createElement(name || 'div');
+  for (const part of rest.match(/[.#][^.#]+/g) || []) {
+    if (part[0] === '.') el.classList.add(part.slice(1));
+    else el.id = part.slice(1);
+  }
+  for (const [k, v] of Object.entries(props)) {
+    if (v == null || v === false) continue;
+    if (k.startsWith('on')) el.addEventListener(k.slice(2).toLowerCase(), v);
+    else if (k === 'class') el.className += ' ' + v;
+    else if (k === 'html') el.innerHTML = v; // only ever used with static strings (icons)
+    else if (k in el && typeof v !== 'string') el[k] = v;
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  append(el, children);
+  return el;
+}
+
+function append(el, children) {
+  for (const c of children.flat(Infinity)) {
+    if (c == null || c === false) continue;
+    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  }
+}
+
+// ---------- icons (inline SVG, static strings) ----------
+const P = {
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+  back: '<path d="M15 18l-6-6 6-6"/>',
+  next: '<path d="M9 18l6-6-6-6"/>',
+  close: '<path d="M18 6 6 18M6 6l12 12"/>',
+  trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+  menu: '<circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>',
+  star: '<path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/>',
+  dice: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="16" cy="16" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="16" cy="8" r="1.3" fill="currentColor"/><circle cx="8" cy="16" r="1.3" fill="currentColor"/>',
+  columns: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
+  cover: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15h18"/><path d="m8 11 2-2 2 2 3-3 3 3"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+};
+export function icon(name, cls = '') {
+  const span = document.createElement('span');
+  span.className = 'icon ' + cls;
+  span.setAttribute('aria-hidden', 'true');
+  span.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${P[name]}</svg>`;
+  return span;
+}
+
+// ---------- toast ----------
+let toastHost;
+export function toast(msg, { type = 'info', timeout = 3500 } = {}) {
+  toastHost ||= document.body.appendChild(h('div.toasts', { 'aria-live': 'polite' }));
+  const t = h(`div.toast.${type}`, msg);
+  toastHost.append(t);
+  const remove = () => t.remove();
+  if (timeout) setTimeout(remove, timeout);
+  return { el: t, update: (m) => (t.textContent = m), close: remove };
+}
+
+export function errorToast(e) {
+  console.error(e);
+  toast(e?.message || String(e), { type: 'error', timeout: 6000 });
+}
+
+// ---------- modal dialogs ----------
+export function modal(content, { onClose, cls = '' } = {}) {
+  const dlg = h(`dialog.modal${cls ? '.' + cls : ''}`, content);
+  document.body.append(dlg);
+  dlg.addEventListener('close', () => { dlg.remove(); onClose?.(); });
+  dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); }); // backdrop click
+  dlg.showModal();
+  return dlg;
+}
+
+export function confirmDialog(title, message, { okText = 'Delete', danger = true } = {}) {
+  return new Promise((resolve) => {
+    let result = false;
+    const dlg = modal(
+      h('form.dialog-body', { method: 'dialog' },
+        h('h2', title),
+        h('p.muted', message),
+        h('div.row.end',
+          h('button.btn', { value: 'cancel', type: 'submit' }, 'Cancel'),
+          h(`button.btn${danger ? '.danger' : '.primary'}`, { value: 'ok', type: 'submit', onclick: () => (result = true) }, okText),
+        ),
+      ),
+      { onClose: () => resolve(result) },
+    );
+    dlg.querySelector('.btn.danger, .btn.primary').focus();
+  });
+}
+
+export function prettyUrl(u) {
+  try {
+    const url = new URL(u);
+    return url.hostname.replace(/^www\./, '') + (url.pathname.length > 1 ? url.pathname : '');
+  } catch { return u; }
+}
+
+export function safeHref(u) {
+  try {
+    const url = new URL(/^[a-z]+:\/\//i.test(u) ? u : 'https://' + u);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : null;
+  } catch { return null; }
+}
