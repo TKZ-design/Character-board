@@ -1,5 +1,8 @@
 import { h, icon, errorToast, toast, confirmDialog, prettyUrl, safeHref } from '../ui.js';
-import { api, state, findChar, coverOf, toggleFavorite, tagsOf, tagNamesOf, saveCharacterTags, allSources } from '../state.js';
+import { api, state, findChar, coverOf, toggleFavorite, tagsOf, tagNamesOf, saveCharacterTags, allSources, linksOf } from '../state.js';
+import { miniLinkList } from './link-card.js';
+import { openAddLink } from './add-link.js';
+import { loadThumbs } from '../thumbs.js';
 import { pasteButton } from '../paste.js';
 import { tagInput } from './tag-input.js';
 import { openLightbox } from './lightbox.js';
@@ -11,7 +14,7 @@ let editing = null; // id of the character currently in edit mode
 export function renderDetail(root, id) {
   const c = findChar(id);
   if (!c) {
-    root.replaceChildren(h('div.empty', h('h2', 'Character not found'), h('a.btn', { href: '#/' }, 'Back to board')));
+    root.replaceChildren(h('div.empty', h('h2', 'Character not found'), h('a.btn', { href: '#/characters' }, 'Back to board')));
     return;
   }
   const upload = (files) => addImages(c, files, () => rerender());
@@ -56,7 +59,7 @@ function infoView(c) {
         h('button.btn', { onclick: () => { editing = c.id; rerender(); } }, 'Edit'),
       )),
     tagsOf(c).length
-      ? h('div.chips.inline', tagsOf(c).map((t) => h('a.chip', { href: '#/', onclick: () => { state.tags.clear(); state.tags.add(t.id); state.search = ''; } }, t.name)))
+      ? h('div.chips.inline', tagsOf(c).map((t) => h('a.chip', { href: '#/characters', onclick: () => { state.tags.clear(); state.tags.add(t.id); state.search = ''; } }, t.name)))
       : null,
     h('h4.label', 'Notes'),
     c.notes?.trim() ? h('div.notes', c.notes) : h('p.muted', 'No notes yet.'),
@@ -64,9 +67,22 @@ function infoView(c) {
     links.length
       ? h('ul.links', links.map(([l, href]) => h('li', h('a', { href, target: '_blank', rel: 'noopener noreferrer' }, icon('link'), prettyUrl(href)))))
       : h('p.muted', 'No source links yet.'),
+    state.linksReady ? linkedLinks(c) : null,
     h('div.danger-zone',
       h('button.btn.danger.ghost', { onclick: () => removeCharacter(c) }, 'Delete character')),
   );
+}
+
+/** Links from the Link Vault connected to this character. */
+function linkedLinks(c) {
+  const list = linksOf(c);
+  const el = h('div.char-links',
+    h('div.char-links-head',
+      h('h4.label', 'Link Vault'),
+      h('button.btn.small-btn', { type: 'button', onclick: () => openAddLink({ characterIds: [c.id] }) }, icon('plus'), 'Add link')),
+    list.length ? miniLinkList(list) : h('p.muted', 'No saved links for this character yet.'));
+  setTimeout(() => loadThumbs(el));
+  return el;
 }
 
 function editForm(c) {
@@ -140,7 +156,7 @@ async function removeCharacter(c) {
     await api.deleteCharacter(c);
     state.characters = state.characters.filter((x) => x.id !== c.id);
     toast(`Deleted ${c.name}`, { type: 'ok' });
-    go('#/');
+    go('#/characters');
   } catch (e) { errorToast(e); }
 }
 

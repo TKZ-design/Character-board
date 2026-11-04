@@ -1,5 +1,5 @@
 import { h, icon } from '../ui.js';
-import { state, tagByName, groupById, tagCounts } from '../state.js';
+import { state, tagByName, groupById, tagUseCounts } from '../state.js';
 import { cleanTag, tagKey } from '../text.js';
 
 let uid = 0;
@@ -43,7 +43,7 @@ export function tagInput(initial = []) {
   function suggest() {
     const q = tagKey(input.value);
     if (!q) { close(); return; }
-    const counts = tagCounts();
+    const counts = tagUseCounts();
     const pool = state.tagList.filter((t) => !has(t.name));
     const starts = pool.filter((t) => tagKey(t.name).startsWith(q));
     const contains = pool.filter((t) => !tagKey(t.name).startsWith(q) && tagKey(t.name).includes(q));

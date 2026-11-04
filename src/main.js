@@ -1,16 +1,23 @@
 import './style.css';
 import { h, icon, errorToast, toast } from './ui.js';
-import { api, setApi, state, randomCharacter } from './state.js';
+import { api, setApi, state, randomCharacter, randomLink } from './state.js';
 import { toggleTheme, currentTheme } from './theme.js';
 import { setRerender, setPasteTarget, getPasteTarget, go } from './nav.js';
 import { filesFromPaste } from './upload.js';
+import { parseUrl } from './links.js';
+import { SECTIONS, sectionOf } from './sections.js';
 import { renderLogin } from './views/login.js';
+import { renderHome } from './views/home.js';
 import { renderGrid, filterBar } from './views/grid.js';
 import { renderDetail, resetEditing } from './views/detail.js';
 import { openNewCharacter } from './views/new-character.js';
 import { renderCompare } from './views/compare.js';
 import { renderTags } from './views/tags.js';
 import { openImageChooser } from './views/image-chooser.js';
+import { renderVault, vaultMasthead } from './views/vault.js';
+import { renderLinkDetail, resetLinkEditing } from './views/link-detail.js';
+import { openAddLink, pasteLinkButton } from './views/add-link.js';
+import { fillPendingPreviews } from './previews.js';
 import { pasteButton } from './paste.js';
 import { takeSharedFiles } from './share.js';
 import { exportZip } from './export.js';
@@ -24,14 +31,31 @@ function route() {
 }
 
 // ---------------- header ----------------
-function header(r) {
-  const searchInput = h('input#search', {
-    type: 'search', placeholder: 'Name or source', value: state.search,
-    oninput: (e) => { state.search = e.target.value; renderView(); },
-  });
-  const onGrid = r.view === '';
-  const actions = h('div.actions',
-    h(`a.btn.tags-link${r.view === 'tags' ? '.on' : ''}`, { href: '#/tags', title: 'Manage tags and tag groups (T)', 'aria-current': r.view === 'tags' ? 'page' : null }, 'Tags'),
+
+/** Thin top bar on every page: home, the section switcher, theme + menu. */
+function hubBar(r, sec) {
+  return h('header.hubbar',
+    h('div.hubbar-inner',
+      h(`a.hub-home${r.view === '' ? '.on' : ''}`, { href: '#/', 'aria-label': 'Home', title: 'Home (H)', 'aria-current': r.view === '' ? 'page' : null },
+        icon('home'), h('span.hub-home-label', 'Hub')),
+      h('nav.switcher', { 'aria-label': 'Sections' },
+        SECTIONS.map((s) => h(`a.switch${sec?.id === s.id ? '.on' : ''}`, {
+          href: s.href, 'aria-current': sec?.id === s.id ? 'page' : null,
+        }, h('span.switch-long', s.title), h('span.switch-short', { 'aria-hidden': 'true' }, s.short)))),
+      h('div.utility',
+        h('button.icon-btn', { onclick: () => { toggleTheme(); render(); }, title: 'Toggle light/dark mode', 'aria-label': 'Toggle light/dark mode' },
+          icon(currentTheme() === 'dark' ? 'sun' : 'moon')),
+        menuButton())));
+}
+
+function tagsLink(r) {
+  return h(`a.btn.tags-link${r.view === 'tags' ? '.on' : ''}`, { href: '#/tags', title: 'Manage tags and tag groups (T)', 'aria-current': r.view === 'tags' ? 'page' : null }, 'Tags');
+}
+
+function characterActions(r) {
+  const onGrid = r.view === 'characters';
+  return h('div.actions',
+    tagsLink(r),
     h('button.btn.random-btn', { onclick: goRandom, title: 'Random inspiration (R) — respects your filters' }, 'Random'),
     onGrid && state.characters.length
       ? h(`button.btn.compare-btn${state.compareMode ? '.on' : ''}`, {
@@ -41,26 +65,44 @@ function header(r) {
         }, 'Compare')
       : null,
     onGrid ? pasteButton((files) => openImageChooser(files), { label: 'Paste' }) : null,
-    h('button.btn.primary.new-btn', { onclick: () => openNewCharacter(), title: 'New character (N)' }, 'Add character'),
-    h('div.utility',
-      h('button.icon-btn', { onclick: () => { toggleTheme(); render(); }, title: 'Toggle light/dark mode', 'aria-label': 'Toggle light/dark mode' },
-        icon(currentTheme() === 'dark' ? 'sun' : 'moon')),
-      menuButton()),
-  );
-  if (!onGrid) {
-    return h('header.topbar',
-      h('a.back', { href: '#/' }, icon('back'), h('span', 'Collection')),
-      actions);
+    h('button.btn.primary.new-btn', { onclick: () => openNewCharacter(), title: 'New character (N)' }, 'Add character'));
+}
+
+function linkActions(r) {
+  return h('div.actions',
+    tagsLink(r),
+    pasteLinkButton(),
+    h('button.btn.primary.new-btn', { onclick: () => openAddLink(), title: 'Add a link (N)' }, 'Add link'));
+}
+
+/** The section's own header under the hub bar. */
+function sectionHeader(r, sec) {
+  if (r.view === '') return null; // the home page draws its own title
+  if (r.view === 'characters') {
+    const searchInput = h('input#search', {
+      type: 'search', placeholder: 'Name or source', value: state.search,
+      oninput: (e) => { state.search = e.target.value; renderView(); },
+    });
+    const n = state.characters.length;
+    return h('header.masthead',
+      h('div.masthead-row',
+        h('div.titleblock',
+          h('p.eyebrow', `Collection · ${n} ${n === 1 ? 'entry' : 'entries'}`),
+          h('h1.title', 'Characters', h('span.title-dot', '.'))),
+        characterActions(r)),
+      filterBar(searchInput, render));
   }
-  const n = state.characters.length;
-  return h('header.masthead',
-    h('div.masthead-row',
-      h('div.titleblock',
-        h('p.eyebrow', `Collection · ${n} ${n === 1 ? 'entry' : 'entries'}`),
-        h('h1.title', 'Characters', h('span.title-dot', '.'))),
-      actions),
-    filterBar(searchInput, render),
-  );
+  if (r.view === 'links') return vaultMasthead(linkActions(r), render, renderView);
+  // detail pages, compare, tags: a back link + the section's actions
+  const back = sec || SECTIONS[0];
+  return h('header.topbar',
+    h('a.back', { href: back.href }, icon('back'), h('span', back.title)),
+    back.id === 'links' ? linkActions(r) : characterActions(r));
+}
+
+function header(r) {
+  const sec = sectionOf(r.view);
+  return h('div.chrome', hubBar(r, sec), sectionHeader(r, sec));
 }
 
 function menuButton() {
@@ -78,33 +120,50 @@ function menuButton() {
 }
 
 function goRandom() {
-  const current = route().view === 'c' ? route().arg : null;
-  const c = randomCharacter(current);
+  const r = route();
+  if (sectionOf(r.view)?.id === 'links' && r.view !== 'tags') {
+    const l = randomLink(r.view === 'l' ? r.arg : null);
+    if (l) go(`#/l/${l.id}`);
+    else toast(state.links.length ? 'No links match your filters' : 'Add some links first!');
+    return;
+  }
+  const c = randomCharacter(r.view === 'c' ? r.arg : null);
   if (c) go(`#/c/${c.id}`);
   else toast(state.characters.length ? 'No characters match your filters' : 'Add some characters first!');
 }
 
 // ---------------- views ----------------
 const viewEl = h('main#view');
-let headerEl = h('header');
+let headerEl = h('div');
+
+const ROUTES = {
+  '': (root) => renderHome(root),
+  characters: (root) => renderGrid(root, render), // full render so the header's filters/Compare stay in sync
+  c: (root, arg) => renderDetail(root, arg),
+  compare: (root, arg) => renderCompare(root, arg),
+  tags: (root) => renderTags(root),
+  links: (root) => renderVault(root, render),
+  l: (root, arg) => renderLinkDetail(root, arg),
+};
 
 function renderView() {
   const r = route();
-  viewEl.className = 'view-' + (r.view || 'grid');
+  const known = r.view in ROUTES;
+  viewEl.className = 'view-' + (known ? (r.view === 'characters' ? 'grid' : r.view || 'home') : 'home');
   setPasteTarget(null);
-  if (r.view === 'c') renderDetail(viewEl, r.arg);
-  else if (r.view === 'compare') renderCompare(viewEl, r.arg);
-  else if (r.view === 'tags') renderTags(viewEl);
-  else renderGrid(viewEl, render); // full render so the header's filters/Compare stay in sync
+  (ROUTES[r.view] || ROUTES[''])(viewEl, r.arg);
 }
 
 function render() {
-  if (!state.user) { renderLogin(app); return; }
+  if (!state.user) { renderLogin(app, { pendingUrl: peekPendingAdd() }); return; }
   const r = route();
   const key = r.view + '/' + r.arg;
   if (key !== lastRoute) {
     resetEditing();
-    if (r.view !== '') { state.compareMode = false; state.compareSel = []; }
+    resetLinkEditing();
+    if (r.view !== 'characters') { state.compareMode = false; state.compareSel = []; }
+    const sec = sectionOf(r.view);
+    if (sec && r.view !== 'tags') state.lastSection = sec.id;
     lastRoute = key;
     window.scrollTo(0, 0);
   }
@@ -122,6 +181,8 @@ setRerender(render);
 window.addEventListener('hashchange', render);
 
 // ---------------- paste & drop anywhere ----------------
+const isTyping = (el) => /^(INPUT|TEXTAREA|SELECT)$/.test(el?.tagName) || el?.isContentEditable;
+
 function deliverFiles(files) {
   if (!state.user || !files.length) return;
   const target = getPasteTarget();
@@ -130,9 +191,18 @@ function deliverFiles(files) {
 }
 document.addEventListener('paste', (e) => {
   const files = filesFromPaste(e);
-  if (!files.length) return; // let normal text paste work
+  if (files.length) {
+    e.preventDefault();
+    deliverFiles(files);
+    return;
+  }
+  // A pasted link (Ctrl+V / Cmd+V, not into a text field) → save it to the Link Vault
+  if (!state.user || isTyping(e.target) || document.querySelector('dialog[open]')) return;
+  const url = parseUrl(e.clipboardData?.getData('text/uri-list') || e.clipboardData?.getData('text/plain'));
+  if (!url) return;
   e.preventDefault();
-  deliverFiles(files);
+  const r = route();
+  openAddLink({ url, characterIds: r.view === 'c' ? [r.arg] : [] });
 });
 const dropOverlay = h('div.drop-overlay', h('div', h('p', 'Drop images to add them')));
 document.body.append(dropOverlay);
@@ -151,17 +221,49 @@ window.addEventListener('drop', (e) => {
 // ---------------- keyboard shortcuts ----------------
 document.addEventListener('keydown', (e) => {
   if (!state.user || document.querySelector('dialog[open]')) return;
-  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
-  if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
-  if (e.key === '/' ) { const s = document.getElementById('search'); if (s) { e.preventDefault(); s.focus(); } }
-  else if (e.key === 'n') { e.preventDefault(); openNewCharacter(); }
+  if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+  const r = route();
+  const inLinks = sectionOf(r.view)?.id === 'links' && r.view !== 'tags';
+  if (e.key === '/') { const s = document.getElementById('search'); if (s) { e.preventDefault(); s.focus(); } }
+  else if (e.key === 'n') { e.preventDefault(); if (inLinks) openAddLink(); else openNewCharacter(); }
   else if (e.key === 'r') { e.preventDefault(); goRandom(); }
   else if (e.key === 't') { e.preventDefault(); go('#/tags'); }
-  else if (e.key === 'Escape' && route().view) go('#/');
+  else if (e.key === 'h') { e.preventDefault(); go('#/'); }
+  else if (e.key === 'Escape') {
+    if (['c', 'compare'].includes(r.view)) go('#/characters');
+    else if (r.view === 'l') go('#/links');
+    else if (r.view === 'tags') go(sectionOf('tags').href);
+  }
 });
+
+// ---------------- "?add=<link>" (iOS Shortcut / Android share) ----------------
+// Kept in localStorage so it survives the login (the magic link may open a new tab).
+const PENDING_ADD = 'cb-pending-add';
+const PENDING_MAX_AGE = 30 * 60 * 1000;
+
+function stashPendingAdd(text) {
+  const url = parseUrl(text);
+  if (!url) { toast('That doesn’t look like a link.', { type: 'error' }); return; }
+  try { localStorage.setItem(PENDING_ADD, JSON.stringify({ url, at: Date.now() })); } catch { pendingFallback = url; }
+}
+let pendingFallback = null;
+function peekPendingAdd() {
+  try {
+    const p = JSON.parse(localStorage.getItem(PENDING_ADD) || 'null');
+    if (p && Date.now() - p.at < PENDING_MAX_AGE) return p.url;
+  } catch {}
+  return pendingFallback;
+}
+function takePendingAdd() {
+  const url = peekPendingAdd();
+  try { localStorage.removeItem(PENDING_ADD); } catch {}
+  pendingFallback = null;
+  return url;
+}
 
 // ---------------- boot ----------------
 async function loadData() {
+  const links = loadLinks(); // independent: a missing Link Vault table must never break the character board
   try {
     const [characters, tags, groups] = await Promise.all([api.listCharacters(), api.listTags(), api.listGroups()]);
     state.characters = characters;
@@ -170,9 +272,24 @@ async function loadData() {
     state.loaded = true;
   } catch (e) {
     errorToast(e);
-    if (/relation .* does not exist|schema cache|column .* does not exist/i.test(e.message || '')) {
+    if (needsMigration(e)) {
       toast('The database needs an update — run the SQL files in supabase/migrations (see README).', { type: 'error', timeout: 0 });
     }
+  }
+  await links;
+}
+
+const needsMigration = (e) => /relation .* does not exist|schema cache|column .* does not exist|could not find the table/i.test(e?.message || '');
+
+async function loadLinks() {
+  try {
+    state.links = await api.listLinks();
+    state.linksReady = true;
+  } catch (e) {
+    console.error(e);
+    state.links = [];
+    state.linksReady = false;
+    if (!needsMigration(e)) errorToast(e);
   }
 }
 
@@ -182,20 +299,32 @@ async function pickUpShared() {
   if (files.length) openImageChooser(files);
 }
 
+function pickUpPendingLink() {
+  const url = takePendingAdd();
+  if (!url) return;
+  if (route().view !== 'links') location.hash = '#/links';
+  setTimeout(() => openAddLink({ url }), 0);
+}
+
 async function onUser(user) {
   const changed = user?.id !== state.user?.id;
   state.user = user;
   if (!changed) return;
   if (user) {
-    app.replaceChildren(h('div.loading', h('div.spinner'), 'Loading your board…'));
+    app.replaceChildren(h('div.loading', h('div.spinner'), 'Loading your hub…'));
     await loadData();
     lastRoute = '';
     app.replaceChildren(); // force header/view re-mount
   } else {
     state.characters = []; state.tagList = []; state.groups = []; state.tags.clear();
+    state.links = []; state.linksReady = null; state.linkFilter.tags.clear();
   }
   render();
-  if (user && state.loaded) pickUpShared();
+  if (user && state.loaded) {
+    pickUpShared();
+    pickUpPendingLink();
+    fillPendingPreviews(render);
+  }
 }
 
 async function boot() {
@@ -205,17 +334,25 @@ async function boot() {
     try { if (mock) sessionStorage.setItem('cb-mock', '1'); else mock = sessionStorage.getItem('cb-mock') === '1'; } catch {}
     if (mock) setApi((await import('./mock.js')).mockApi);
   }
-  // Clean "?code=…" left by the magic-link redirect once it has been used
   const params = new URLSearchParams(location.search);
+  const cleanParams = (...names) => {
+    names.forEach((n) => params.delete(n));
+    history.replaceState(null, '', location.pathname + (params.size ? `?${params}` : '') + location.hash);
+  };
+  // "?add=<link>" comes from the iOS Shortcut "Save to Vault" (or an Android share of a link)
+  if (params.has('add')) {
+    stashPendingAdd(params.get('add'));
+    cleanParams('add');
+  }
   // "?shared=…" is where the service worker sends you after an Android share
   if (params.has('shared')) {
     const how = params.get('shared');
-    params.delete('shared');
-    history.replaceState(null, '', location.pathname + (params.size ? `?${params}` : '') + location.hash);
-    if (how === '0') toast('Nothing to add — the share didn’t contain an image.');
+    cleanParams('shared');
+    if (how === '0') toast('Nothing to add — the share didn’t contain an image or a link.');
     if (how === 'error') toast('Couldn’t receive the shared image. Try again, or paste it instead.', { type: 'error' });
   }
   api.onAuthChange((u) => {
+    // Clean "?code=…" left by the magic-link redirect once it has been used
     if (params.has('code')) history.replaceState(null, '', location.pathname + location.hash);
     // don't await Supabase calls inside its own auth callback (can deadlock)
     setTimeout(() => onUser(u), 0);

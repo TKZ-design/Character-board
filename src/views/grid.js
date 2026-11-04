@@ -1,7 +1,8 @@
 import { h, icon, errorToast, toast } from '../ui.js';
 import { go } from '../nav.js';
-import { api, state, filtered, hasFilters, coverOf, toggleFavorite, groupedTags, tagCounts, tagNamesOf } from '../state.js';
+import { api, state, filtered, hasFilters, coverOf, toggleFavorite, groupedTags, tagCounts, tagNamesOf, sortItems, setPref } from '../state.js';
 import { openNewCharacter } from './new-character.js';
+import { viewBar, listRow } from './viewbar.js';
 
 /** Tag / favorites filters + search, shown under the title on the board. */
 export function filterBar(searchInput, rerender) {
@@ -39,7 +40,7 @@ export function filterBar(searchInput, rerender) {
 }
 
 export function renderGrid(root, rerender) {
-  const list = filtered();
+  const list = sortItems(filtered(), state.charSort);
 
   const compareBar = state.compareMode
     ? h('div.compare-bar', { role: 'region', 'aria-label': 'Compare selection' },
@@ -63,23 +64,30 @@ export function renderGrid(root, rerender) {
       h('p.muted', 'Nothing fits the current search and filters.'),
       h('button.btn', { onclick: () => { state.search = ''; state.tags.clear(); state.favoritesOnly = false; document.querySelector('#search')?.value && (document.querySelector('#search').value = ''); rerender(); } }, 'Clear filters'));
   } else {
-    body = h('div.masonry', list.map((c) => card(c, rerender)));
+    body = state.charView === 'list'
+      ? h('ul.lrows.char-rows', list.map((c) => row(c, rerender)))
+      : h('div.masonry', list.map((c) => card(c, rerender)));
     loadThumbs(body, list);
   }
 
+  const n = state.characters.length;
+  const bar = n
+    ? viewBar({
+        text: hasFilters() ? `${list.length} of ${n} characters` : `${n} character${n === 1 ? '' : 's'}`,
+        sort: state.charSort, view: state.charView,
+        onSort: (v) => { state.charSort = v; setPref('char-sort', v); rerender(); },
+        onView: (v) => { state.charView = v; setPref('char-view', v); rerender(); },
+      })
+    : null;
+
   root.replaceChildren(...[
-    hasFilters() && list.length ? h('p.result-count', `${list.length} of ${state.characters.length} characters`) : null,
+    bar,
     body,
     compareBar,
   ].filter(Boolean));
 }
 
-function card(c, rerender) {
-  const cover = coverOf(c);
-  const media = cover
-    ? h('div.card-media', { style: `aspect-ratio:${cover.width || 3}/${cover.height || 4}` },
-        h('img', { alt: '', loading: 'lazy', decoding: 'async', 'data-path': cover.thumb_path || cover.path }))
-    : h('div.card-media.placeholder', 'No image');
+function starFor(c, rerender) {
   const star = h(`button.star${c.is_favorite ? '.on' : ''}`, {
     title: c.is_favorite ? 'Remove from favorites' : 'Add to favorites',
     'aria-label': c.is_favorite ? `Unfavorite ${c.name}` : `Favorite ${c.name}`,
@@ -94,6 +102,11 @@ function card(c, rerender) {
       }).catch(errorToast);
     },
   }, icon('star'));
+  return star;
+}
+
+/** In compare mode, tapping a character selects it instead of opening it. */
+function compareClick(c, rerender) {
   const selIdx = state.compareSel.indexOf(c.id);
   const onLink = (e) => {
     if (!state.compareMode) return;
@@ -103,10 +116,45 @@ function card(c, rerender) {
     else state.compareSel.push(c.id);
     rerender();
   };
+  return { selIdx, onLink };
+}
+
+function metaText(c) {
   const tags = tagNamesOf(c);
   const tagText = tags.slice(0, 4).join(' · ') + (tags.length > 4 ? ` +${tags.length - 4}` : '');
   const n = c.images.length;
   const countText = `${n} image${n === 1 ? '' : 's'}`;
+  return tagText ? `${tagText} — ${countText}` : countText;
+}
+
+/** Compact list row: small thumbnail, name, source, tags, image count, star. */
+function row(c, rerender) {
+  const cover = coverOf(c);
+  const { selIdx, onLink } = compareClick(c, rerender);
+  return listRow({
+    href: `#/c/${c.id}`,
+    cls: `${state.compareMode ? '.selectable' : ''}${selIdx >= 0 ? '.selected' : ''}`,
+    onclick: onLink,
+    pressed: state.compareMode ? String(selIdx >= 0) : null,
+    thumb: [
+      state.compareMode ? h('span.sel-badge', { 'aria-hidden': 'true' }, selIdx >= 0 ? String(selIdx + 1) : '') : null,
+      cover ? h('img', { alt: '', loading: 'lazy', decoding: 'async', 'data-path': cover.thumb_path || cover.path }) : h('span.lrow-noimg', 'No image'),
+    ],
+    title: c.name,
+    sub: c.source || null,
+    meta: metaText(c),
+    buttons: [starFor(c, rerender)],
+  });
+}
+
+function card(c, rerender) {
+  const cover = coverOf(c);
+  const media = cover
+    ? h('div.card-media', { style: `aspect-ratio:${cover.width || 3}/${cover.height || 4}` },
+        h('img', { alt: '', loading: 'lazy', decoding: 'async', 'data-path': cover.thumb_path || cover.path }))
+    : h('div.card-media.placeholder', 'No image');
+  const star = starFor(c, rerender);
+  const { selIdx, onLink } = compareClick(c, rerender);
   return h(`div.card${state.compareMode ? '.selectable' : ''}${selIdx >= 0 ? '.selected' : ''}`, { 'data-id': c.id },
     state.compareMode ? h('span.sel-badge', { 'aria-hidden': 'true' }, selIdx >= 0 ? String(selIdx + 1) : '') : null,
     // the image is a second, mouse-only way into the same link (keyboard/screen readers use the name)
@@ -115,7 +163,7 @@ function card(c, rerender) {
       h('a.card-link', { href: `#/c/${c.id}`, onclick: onLink, 'aria-pressed': state.compareMode ? String(selIdx >= 0) : null },
         h('h3.card-name', c.name),
         c.source ? h('p.card-source', c.source) : null,
-        h('p.card-meta', tagText ? `${tagText} — ${countText}` : countText)),
+        h('p.card-meta', metaText(c))),
       star));
 }
 

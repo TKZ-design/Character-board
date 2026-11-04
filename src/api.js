@@ -23,6 +23,14 @@ function sortImages(c) {
   return c;
 }
 
+function linkRow(l) {
+  l.tag_ids = (l.vault_link_tags || []).map((x) => x.tag_id);
+  l.character_ids = (l.vault_link_characters || []).map((x) => x.character_id);
+  delete l.vault_link_tags;
+  delete l.vault_link_characters;
+  return l;
+}
+
 export const realApi = {
   // ---------- auth ----------
   async getUser() {
@@ -133,6 +141,75 @@ export const realApi = {
   },
   async deleteGroup(id) {
     check(await supabase.from('tag_groups').delete().eq('id', id));
+  },
+
+  // ---------- Link Vault ----------
+  async listLinks() {
+    const rows = check(
+      await supabase.from('vault_links')
+        .select('*, vault_link_tags(tag_id), vault_link_characters(character_id)')
+        .order('created_at', { ascending: false }),
+    );
+    return rows.map(linkRow);
+  },
+  async createLink(fields) {
+    return linkRow(check(await supabase.from('vault_links').insert(fields).select().single()));
+  },
+  async updateLink(id, patch) {
+    const row = check(await supabase.from('vault_links').update(patch).eq('id', id).select().single());
+    delete row.vault_link_tags; delete row.vault_link_characters;
+    return row;
+  },
+  async deleteLink(link) {
+    check(await supabase.from('vault_links').delete().eq('id', link.id));
+    const paths = [link.cover_path, link.cover_thumb_path].filter(Boolean);
+    if (paths.length) await supabase.storage.from(BUCKET).remove(paths);
+  },
+  /** Replace a link's tags by name (missing tags are created). Returns the link's tag rows. */
+  async setLinkTags(linkId, names) {
+    return check(await supabase.rpc('set_link_tags', { p_link_id: linkId, p_names: names }));
+  },
+  /** Replace the characters a link is connected to. */
+  async setLinkCharacters(linkId, characterIds, previousIds = []) {
+    const gone = previousIds.filter((id) => !characterIds.includes(id));
+    const added = characterIds.filter((id) => !previousIds.includes(id));
+    if (gone.length) check(await supabase.from('vault_link_characters').delete().eq('link_id', linkId).in('character_id', gone));
+    if (added.length) {
+      check(await supabase.from('vault_link_characters')
+        .upsert(added.map((character_id) => ({ link_id: linkId, character_id })), { onConflict: 'link_id,character_id', ignoreDuplicates: true }));
+    }
+  },
+  /** Upload a compressed custom thumbnail for a link. Returns the columns to save. */
+  async uploadLinkCover(userId, linkId, img) {
+    const base = `${userId}/links/${linkId}/${crypto.randomUUID()}`;
+    const cover_path = `${base}.${img.ext}`;
+    const cover_thumb_path = `${base}_thumb.${img.ext}`;
+    const store = supabase.storage.from(BUCKET);
+    const opts = { contentType: img.full.type, cacheControl: '31536000', upsert: false };
+    check(await store.upload(cover_path, img.full, opts));
+    try {
+      check(await store.upload(cover_thumb_path, img.thumb, { ...opts, contentType: img.thumb.type }));
+    } catch (e) { await store.remove([cover_path]); throw e; }
+    return { cover_path, cover_thumb_path, cover_width: img.width, cover_height: img.height };
+  },
+  async removeFiles(paths) {
+    const list = paths.filter(Boolean);
+    if (list.length) await supabase.storage.from(BUCKET).remove(list);
+  },
+  /**
+   * Open Graph preview via the link-preview Edge Function.
+   * Resolves to { title, description, image, site_name } or throws an error with
+   * `.status` (404 = the function isn't deployed yet).
+   */
+  async fetchPreview(url) {
+    const { data, error } = await supabase.functions.invoke('link-preview', { body: { url } });
+    if (error) {
+      const status = error.context?.status ?? 0;
+      let message = error.message;
+      try { message = (await error.context.json()).error || message; } catch {}
+      throw Object.assign(new Error(message), { status });
+    }
+    return data;
   },
 
   /** Returns { path: signedUrl } for the given storage paths (cached). */
