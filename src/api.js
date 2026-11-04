@@ -47,7 +47,7 @@ export const realApi = {
   // ---------- characters ----------
   async listCharacters() {
     const rows = check(
-      await supabase.from('characters').select('*, images!images_character_id_fkey(*)').order('updated_at', { ascending: false }),
+      await supabase.from('characters').select('*, images!images_character_id_fkey(*)').order('created_at', { ascending: false }),
     );
     return rows.map(sortImages);
   },

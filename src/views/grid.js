@@ -1,10 +1,20 @@
-import { h, icon } from '../ui.js';
-import { api, state, allTags, filtered, hasFilters, coverOf } from '../state.js';
+import { h, icon, errorToast } from '../ui.js';
+import { api, state, allTags, filtered, hasFilters, coverOf, toggleFavorite } from '../state.js';
 import { openNewCharacter } from './new-character.js';
 
 export function renderGrid(root, rerender) {
   const tags = allTags();
   const list = filtered();
+
+  const favCount = state.characters.filter((c) => c.is_favorite).length;
+  const toolbar = state.characters.length
+    ? h('div.toolbar',
+        h(`button.btn.fav-filter${state.favoritesOnly ? '.on' : ''}`, {
+          'aria-pressed': String(state.favoritesOnly),
+          title: 'Show favorites only',
+          onclick: () => { state.favoritesOnly = !state.favoritesOnly; rerender(); },
+        }, icon('star'), 'Favorites', h('span.count', favCount)))
+    : null;
 
   const tagBar = tags.length
     ? h('div.tagbar', { role: 'group', 'aria-label': 'Filter by tag' },
@@ -27,32 +37,48 @@ export function renderGrid(root, rerender) {
     body = h('div.empty',
       h('h2', 'No matches'),
       h('p.muted', 'Nothing fits the current search and filters.'),
-      h('button.btn', { onclick: () => { state.search = ''; state.tags.clear(); document.querySelector('#search')?.value && (document.querySelector('#search').value = ''); rerender(); } }, 'Clear filters'));
+      h('button.btn', { onclick: () => { state.search = ''; state.tags.clear(); state.favoritesOnly = false; document.querySelector('#search')?.value && (document.querySelector('#search').value = ''); rerender(); } }, 'Clear filters'));
   } else {
-    body = h('div.masonry', list.map((c) => card(c)));
+    body = h('div.masonry', list.map((c) => card(c, rerender)));
     loadThumbs(body, list);
   }
 
   root.replaceChildren(...[
+    toolbar,
     tagBar,
     hasFilters() && list.length ? h('p.result-count.muted', `${list.length} of ${state.characters.length} characters`) : null,
     body,
   ].filter(Boolean));
 }
 
-function card(c) {
+function card(c, rerender) {
   const cover = coverOf(c);
   const media = cover
     ? h('div.card-media', { style: `aspect-ratio:${cover.width || 3}/${cover.height || 4}` },
         h('img', { alt: '', loading: 'lazy', decoding: 'async', 'data-path': cover.thumb_path || cover.path }))
     : h('div.card-media.placeholder', icon('image'));
-  return h('a.card', { href: `#/c/${c.id}`, 'data-id': c.id },
-    media,
-    h('div.card-meta',
-      h('h3', c.name),
-      c.tags?.length ? h('div.card-tags', c.tags.slice(0, 4).map((t) => h('span.chip.small', t)), c.tags.length > 4 ? h('span.muted.small', `+${c.tags.length - 4}`) : null) : null,
-      c.images.length > 1 ? h('span.img-count', { title: `${c.images.length} images` }, icon('image'), c.images.length) : null,
-    ));
+  const star = h(`button.star${c.is_favorite ? '.on' : ''}`, {
+    title: c.is_favorite ? 'Remove from favorites' : 'Add to favorites',
+    'aria-label': c.is_favorite ? `Unfavorite ${c.name}` : `Favorite ${c.name}`,
+    'aria-pressed': String(!!c.is_favorite),
+    onclick: (e) => {
+      e.preventDefault();
+      toggleFavorite(c, () => {
+        star.classList.toggle('on', c.is_favorite);
+        star.setAttribute('aria-pressed', String(c.is_favorite));
+        if (state.favoritesOnly) rerender();
+      }).catch(errorToast);
+    },
+  }, icon('star'));
+  return h('div.card', { 'data-id': c.id },
+    h('a.card-link', { href: `#/c/${c.id}` },
+      media,
+      h('div.card-meta',
+        h('h3', c.name),
+        c.tags?.length ? h('div.card-tags', c.tags.slice(0, 4).map((t) => h('span.chip.small', t)), c.tags.length > 4 ? h('span.muted.small', `+${c.tags.length - 4}`) : null) : null,
+        c.images.length > 1 ? h('span.img-count', { title: `${c.images.length} images` }, icon('image'), c.images.length) : null,
+      )),
+    star);
 }
 
 async function loadThumbs(container, list) {

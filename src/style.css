@@ -321,3 +321,23 @@ dialog { color: var(--text); }
   .lb-prev { left: 4px; } .lb-next { right: 4px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ---------- phase 2: favorites & cover ---------- */
+.card-link { display: block; color: inherit; text-decoration: none; }
+.star {
+  position: absolute; top: 8px; right: 8px; z-index: 2;
+  width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--bg) 70%, transparent); color: #fff;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  opacity: 0; transition: opacity 0.15s, transform 0.1s;
+}
+.star .icon { width: 17px; height: 17px; }
+.card:hover .star, .star:focus-visible, .star.on { opacity: 1; }
+.star.on { color: var(--star); }
+.star.on svg, .star-btn.on svg, .fav-filter.on svg { fill: currentColor; }
+.star:active { transform: scale(0.88); }
+@media (hover: none) { .star { opacity: 1; } .star:not(.on) { opacity: 0.75; } }
+.star-btn.on { color: var(--star); border-color: color-mix(in srgb, var(--star) 50%, var(--border)); }
+.fav-filter .count { font-size: 0.75rem; opacity: 0.7; }
+.fav-filter.on { color: var(--star); border-color: var(--star); background: color-mix(in srgb, var(--star) 14%, transparent); }

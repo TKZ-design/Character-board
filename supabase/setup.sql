@@ -85,6 +85,20 @@ create policy "own images - update" on public.images
 create policy "own images - delete" on public.images
   for delete to authenticated using (user_id = (select auth.uid()));
 
+-- ---------- Phase 2: favorites and cover image ------------------------
+
+alter table public.characters add column if not exists is_favorite boolean not null default false;
+alter table public.characters add column if not exists cover_image_id uuid;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'characters_cover_image_id_fkey') then
+    alter table public.characters
+      add constraint characters_cover_image_id_fkey
+      foreign key (cover_image_id) references public.images (id) on delete set null;
+  end if;
+end $$;
+
 -- ---------- Storage: a PRIVATE bucket for the image files -------------
 -- Files are stored as  <your-user-id>/<character-id>/<image-id>.webp
 -- and the policies below only allow access to your own folder.

@@ -14,6 +14,8 @@ Your data lives in **your own Supabase project**, and only you can see it once y
 - Images are **shrunk in your browser before uploading** (max 2000 px, WebP or JPEG), so they take up less storage
 - **Masonry grid** with **search by name** and **filtering by one or more tags**
 - **Detail view** with a gallery, full-size zoom (click the image, use arrow keys or swipe), editing and delete
+- **Cover image**: hover an image in a character's gallery (always visible on phones) and press the picture icon to make it the image shown on the grid
+- **Favorites**: star characters (on the card or in the detail view) and use the **★ Favorites** button to show only those
 - Dark mode by default, with a light mode toggle (☀️/🌙 button, your choice is remembered)
 - **Installable** on desktop and phone like a normal app
 

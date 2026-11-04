@@ -1,5 +1,5 @@
 import { h, icon, errorToast, toast, confirmDialog, prettyUrl, safeHref } from '../ui.js';
-import { api, state, findChar } from '../state.js';
+import { api, state, findChar, coverOf, toggleFavorite } from '../state.js';
 import { tagInput } from './tag-input.js';
 import { openLightbox } from './lightbox.js';
 import { addImages, pickFiles } from '../upload.js';
@@ -16,11 +16,14 @@ export function renderDetail(root, id) {
   const upload = (files) => addImages(c, files, () => rerender());
   setPasteTarget(upload);
 
+  const cover = coverOf(c);
   const gallery = h('div.gallery',
-    c.images.map((im, idx) => h('figure.thumb', { 'data-id': im.id },
+    c.images.map((im, idx) => h(`figure.thumb${im === cover ? '.is-cover' : ''}`, { 'data-id': im.id },
       h('button.thumb-open', { 'aria-label': `Open image ${idx + 1}`, onclick: () => openLightbox(c.images, idx) },
         h('img', { alt: '', loading: 'lazy', 'data-path': im.thumb_path || im.path, style: `aspect-ratio:${im.width}/${im.height}` })),
+      im === cover && c.images.length > 1 ? h('span.cover-badge', 'Cover') : null,
       h('div.thumb-actions',
+        im !== cover ? h('button.icon-btn.small', { title: 'Use as cover', 'aria-label': 'Use as cover image', onclick: () => setCover(c, im) }, icon('cover')) : null,
         h('button.icon-btn.small.danger', { title: 'Delete image', 'aria-label': 'Delete image', onclick: () => removeImage(c, im) }, icon('trash'))),
     )),
     h('button.dropzone.thumb-add', { onclick: () => pickFiles(upload) },
@@ -39,6 +42,12 @@ function infoView(c) {
     h('div.info-head',
       h('h1', c.name),
       h('div.row',
+        h(`button.icon-btn.star-btn${c.is_favorite ? '.on' : ''}`, {
+          title: c.is_favorite ? 'Remove from favorites' : 'Add to favorites',
+          'aria-label': c.is_favorite ? 'Remove from favorites' : 'Add to favorites',
+          'aria-pressed': String(!!c.is_favorite),
+          onclick: () => toggleFavorite(c, rerender).catch(errorToast),
+        }, icon('star')),
         h('button.btn', { onclick: () => { editing = c.id; rerender(); } }, icon('edit'), 'Edit'),
       )),
     c.tags?.length
@@ -93,11 +102,22 @@ function editForm(c) {
   );
 }
 
+async function setCover(c, im) {
+  const before = c.cover_image_id;
+  c.cover_image_id = im.id;
+  rerender();
+  try {
+    await api.updateCharacter(c.id, { cover_image_id: im.id });
+    toast('Cover updated', { type: 'ok', timeout: 1500 });
+  } catch (e) { c.cover_image_id = before; rerender(); errorToast(e); }
+}
+
 async function removeImage(c, im) {
   if (!(await confirmDialog('Delete this image?', 'It will be permanently removed from storage.'))) return;
   try {
     await api.deleteImage(im);
     c.images = c.images.filter((x) => x.id !== im.id);
+    if (c.cover_image_id === im.id) c.cover_image_id = null; // database does the same (on delete set null)
     rerender();
   } catch (e) { errorToast(e); }
 }
