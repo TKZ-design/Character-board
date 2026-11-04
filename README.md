@@ -16,10 +16,13 @@ Your data lives in **your own Supabase project**, and only you can see it once y
 - **Detail view** with a gallery, full-size zoom (click the image, use arrow keys or swipe), editing and delete
 - **Cover image**: hover an image in a character's gallery (always visible on phones) and press the picture icon to make it the image shown on the grid
 - **Favorites**: star characters (on the card or in the detail view) and use the **★ Favorites** button to show only those
+- **🎲 Random**: jumps to a random character — it respects your current search, tag and favorites filters (shortcut: `R`)
+- **Compare**: press **Compare** on the board, tap 2 or 3 characters, then **Compare** again to see them side by side
+- **Backup**: **⋮ menu → Download backup (ZIP)** saves everything — one folder of full-size images per character, plus a `characters.json` file with all names, tags, notes, links and favorites
 - Dark mode by default, with a light mode toggle (☀️/🌙 button, your choice is remembered)
 - **Installable** on desktop and phone like a normal app
 
-Handy shortcuts on a computer: `/` jumps to search, `N` makes a new character, `Esc` goes back to the board.
+Handy shortcuts on a computer: `/` jumps to search, `N` makes a new character, `R` opens a random one, `Esc` goes back to the board.
 Pasting or dropping an image on the board starts a new character with it.
 
 ---

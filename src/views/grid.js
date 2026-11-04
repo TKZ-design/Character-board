@@ -1,4 +1,5 @@
-import { h, icon, errorToast } from '../ui.js';
+import { h, icon, errorToast, toast } from '../ui.js';
+import { go } from '../nav.js';
 import { api, state, allTags, filtered, hasFilters, coverOf, toggleFavorite } from '../state.js';
 import { openNewCharacter } from './new-character.js';
 
@@ -13,7 +14,22 @@ export function renderGrid(root, rerender) {
           'aria-pressed': String(state.favoritesOnly),
           title: 'Show favorites only',
           onclick: () => { state.favoritesOnly = !state.favoritesOnly; rerender(); },
-        }, icon('star'), 'Favorites', h('span.count', favCount)))
+        }, icon('star'), 'Favorites', h('span.count', favCount)),
+        h(`button.btn${state.compareMode ? '.on' : ''}`, {
+          'aria-pressed': String(state.compareMode),
+          title: 'Pick 2–3 characters to view side by side',
+          onclick: () => { state.compareMode = !state.compareMode; state.compareSel = []; rerender(); },
+        }, icon('columns'), 'Compare'))
+    : null;
+
+  const compareBar = state.compareMode
+    ? h('div.compare-bar', { role: 'region', 'aria-label': 'Compare selection' },
+        h('span', state.compareSel.length ? `${state.compareSel.length} of 3 selected` : 'Tap 2–3 characters to compare'),
+        h('button.btn', { onclick: () => { state.compareMode = false; state.compareSel = []; rerender(); } }, 'Cancel'),
+        h('button.btn.primary', {
+          disabled: state.compareSel.length < 2,
+          onclick: () => go(`#/compare/${state.compareSel.join(',')}`),
+        }, icon('columns'), 'Compare'))
     : null;
 
   const tagBar = tags.length
@@ -48,6 +64,7 @@ export function renderGrid(root, rerender) {
     tagBar,
     hasFilters() && list.length ? h('p.result-count.muted', `${list.length} of ${state.characters.length} characters`) : null,
     body,
+    compareBar,
   ].filter(Boolean));
 }
 
@@ -70,8 +87,18 @@ function card(c, rerender) {
       }).catch(errorToast);
     },
   }, icon('star'));
-  return h('div.card', { 'data-id': c.id },
-    h('a.card-link', { href: `#/c/${c.id}` },
+  const selIdx = state.compareSel.indexOf(c.id);
+  const onLink = (e) => {
+    if (!state.compareMode) return;
+    e.preventDefault();
+    if (selIdx >= 0) state.compareSel.splice(selIdx, 1);
+    else if (state.compareSel.length >= 3) { toast('You can compare up to 3 characters'); return; }
+    else state.compareSel.push(c.id);
+    rerender();
+  };
+  return h(`div.card${state.compareMode ? '.selectable' : ''}${selIdx >= 0 ? '.selected' : ''}`, { 'data-id': c.id },
+    state.compareMode ? h('span.sel-badge', { 'aria-hidden': 'true' }, selIdx >= 0 ? String(selIdx + 1) : '') : null,
+    h('a.card-link', { href: `#/c/${c.id}`, onclick: onLink, 'aria-pressed': state.compareMode ? String(selIdx >= 0) : null },
       media,
       h('div.card-meta',
         h('h3', c.name),

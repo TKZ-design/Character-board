@@ -1,6 +1,6 @@
 import './style.css';
 import { h, icon, errorToast, toast } from './ui.js';
-import { api, setApi, state } from './state.js';
+import { api, setApi, state, randomCharacter } from './state.js';
 import { toggleTheme, currentTheme } from './theme.js';
 import { setRerender, setPasteTarget, getPasteTarget, go } from './nav.js';
 import { filesFromPaste } from './upload.js';
@@ -8,6 +8,8 @@ import { renderLogin } from './views/login.js';
 import { renderGrid } from './views/grid.js';
 import { renderDetail, resetEditing } from './views/detail.js';
 import { openNewCharacter } from './views/new-character.js';
+import { renderCompare } from './views/compare.js';
+import { exportZip } from './export.js';
 
 const app = document.getElementById('app');
 let lastRoute = '';
@@ -30,6 +32,7 @@ function header(r) {
       : h('a.btn.ghost.back', { href: '#/' }, icon('back'), h('span', 'Board')),
     onGrid ? h('label.search', icon('search'), searchInput) : h('div.spacer'),
     h('div.actions',
+      h('button.btn.random-btn', { onclick: goRandom, title: 'Random inspiration (R) — respects your filters' }, icon('dice'), h('span.hide-sm', 'Random')),
       h('button.btn.primary.new-btn', { onclick: () => openNewCharacter(), title: 'New character' }, icon('plus'), h('span.hide-sm', 'New')),
       h('button.icon-btn', { onclick: () => { toggleTheme(); render(); }, title: 'Toggle light/dark mode', 'aria-label': 'Toggle light/dark mode' },
         icon(currentTheme() === 'dark' ? 'sun' : 'moon')),
@@ -41,6 +44,7 @@ function header(r) {
 function menuButton() {
   const menu = h('div.menu', { hidden: true },
     h('div.menu-email.muted.small', state.user?.email || ''),
+    h('button.menu-item', { onclick: () => exportZip() }, icon('download'), 'Download backup (ZIP)'),
     h('button.menu-item', { onclick: async () => { await api.signOut(); } }, icon('logout'), 'Sign out'),
   );
   const btn = h('button.icon-btn', { 'aria-label': 'More', 'aria-haspopup': 'true', onclick: (e) => {
@@ -49,6 +53,13 @@ function menuButton() {
     if (!menu.hidden) setTimeout(() => document.addEventListener('click', () => (menu.hidden = true), { once: true }));
   } }, icon('menu'));
   return h('div.menu-wrap', btn, menu);
+}
+
+function goRandom() {
+  const current = route().view === 'c' ? route().arg : null;
+  const c = randomCharacter(current);
+  if (c) go(`#/c/${c.id}`);
+  else toast(state.characters.length ? 'No characters match your filters' : 'Add some characters first!');
 }
 
 // ---------------- views ----------------
@@ -60,6 +71,7 @@ function renderView() {
   viewEl.className = 'view-' + (r.view || 'grid');
   setPasteTarget(null);
   if (r.view === 'c') renderDetail(viewEl, r.arg);
+  else if (r.view === 'compare') renderCompare(viewEl, r.arg);
   else renderGrid(viewEl, renderView);
 }
 
@@ -67,7 +79,12 @@ function render() {
   if (!state.user) { renderLogin(app); return; }
   const r = route();
   const key = r.view + '/' + r.arg;
-  if (key !== lastRoute) { resetEditing(); lastRoute = key; window.scrollTo(0, 0); }
+  if (key !== lastRoute) {
+    resetEditing();
+    if (r.view !== '') { state.compareMode = false; state.compareSel = []; }
+    lastRoute = key;
+    window.scrollTo(0, 0);
+  }
   const newHeader = header(r);
   // keep the search box focused while typing
   const hadFocus = document.activeElement?.id === 'search';
@@ -115,6 +132,7 @@ document.addEventListener('keydown', (e) => {
   if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === '/' ) { const s = document.getElementById('search'); if (s) { e.preventDefault(); s.focus(); } }
   else if (e.key === 'n') { e.preventDefault(); openNewCharacter(); }
+  else if (e.key === 'r') { e.preventDefault(); goRandom(); }
   else if (e.key === 'Escape' && route().view) go('#/');
 });
 

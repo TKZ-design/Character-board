@@ -1,0 +1,77 @@
+import { api, state } from './state.js';
+import { toast, errorToast } from './ui.js';
+
+const safe = (s) => (s || 'untitled').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) || 'untitled';
+const ext = (path) => (path.match(/\.(\w+)$/) || [, 'webp'])[1];
+
+/** Download every character as a ZIP: one folder of images per character + characters.json. */
+export async function exportZip() {
+  const chars = state.characters;
+  if (!chars.length) { toast('Nothing to back up yet'); return; }
+  const t = toast('Preparing backup…', { timeout: 0 });
+  try {
+    const { default: JSZip } = await import('jszip');
+    const zip = new JSZip();
+    const total = chars.reduce((n, c) => n + c.images.length, 0);
+    let done = 0, failed = 0;
+    const used = new Set();
+    const meta = [];
+    const jobs = [];
+
+    for (const c of chars) {
+      let folder = safe(c.name), n = 2;
+      while (used.has(folder.toLowerCase())) folder = `${safe(c.name)} (${n++})`;
+      used.add(folder.toLowerCase());
+      const files = c.images.map((im, i) => ({ im, name: `${String(i + 1).padStart(2, '0')}.${ext(im.path)}` }));
+      const cover = files.find((f) => f.im.id === c.cover_image_id) || files[0];
+      meta.push({
+        name: c.name,
+        tags: c.tags || [],
+        notes: c.notes || '',
+        links: c.links || [],
+        favorite: !!c.is_favorite,
+        created_at: c.created_at,
+        folder,
+        cover: cover ? `${folder}/${cover.name}` : null,
+        images: files.map((f) => `${folder}/${f.name}`),
+      });
+      for (const f of files) {
+        jobs.push(async () => {
+          try {
+            zip.file(`${folder}/${f.name}`, await api.downloadImage(f.im.path));
+          } catch (e) { failed++; console.error(e); }
+          done++;
+          t.update(`Downloading images… ${done} / ${total}`);
+        });
+      }
+    }
+
+    // download 4 at a time
+    const queue = [...jobs];
+    await Promise.all(Array.from({ length: 4 }, async () => { while (queue.length) await queue.shift()(); }));
+
+    zip.file('characters.json', JSON.stringify({
+      app: 'Character Inspiration Board',
+      exported_at: new Date().toISOString(),
+      count: meta.length,
+      characters: meta,
+    }, null, 2));
+
+    t.update('Zipping…');
+    // images are already compressed, so just store them (much faster)
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' }, (m) => t.update(`Zipping… ${Math.round(m.percent)}%`));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `character-board-backup-${new Date().toISOString().slice(0, 10)}.zip`;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
+    t.close();
+    toast(failed ? `Backup downloaded, but ${failed} image(s) failed` : `Backup downloaded (${meta.length} characters, ${total} images)`,
+      { type: failed ? 'error' : 'ok', timeout: 6000 });
+  } catch (e) {
+    t.close();
+    errorToast(e);
+  }
+}

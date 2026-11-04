@@ -10,6 +10,8 @@ export const state = {
   search: '',
   tags: new Set(),        // selected tag filters (character must have ALL of them)
   favoritesOnly: false,
+  compareMode: false,
+  compareSel: [],         // ids of characters picked for compare (max 3)
 };
 
 export function findChar(id) {
@@ -57,4 +59,11 @@ export async function toggleFavorite(c, after) {
     after?.();
     throw e;
   }
+}
+
+/** A random character that matches the current filters (avoids `excludeId` when possible). */
+export function randomCharacter(excludeId) {
+  const pool = filtered();
+  const choices = pool.length > 1 ? pool.filter((c) => c.id !== excludeId) : pool;
+  return choices[Math.floor(Math.random() * choices.length)] || null;
 }
