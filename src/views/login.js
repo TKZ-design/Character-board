@@ -30,7 +30,7 @@ export function renderLogin(root) {
       catch (err) { errorToast(err); }
     },
   },
-    h('p', '✉️ Check your inbox at ', sent, ' and tap the link.'),
+    h('p', 'Check your inbox at ', sent, ' and tap the link.'),
     h('details.muted',
       h('summary', 'Got a code instead? (handy inside the installed phone app)'),
       h('div.row', codeInput, h('button.btn', { type: 'submit' }, 'Log in'))),
@@ -40,9 +40,9 @@ export function renderLogin(root) {
   root.replaceChildren(
     h('main.login',
       h('div.login-card',
-        h('img.login-logo', { src: './icons/icon.svg', alt: '', width: 72, height: 72 }),
-        h('h1', 'Character Inspiration Board'),
-        h('p.muted', 'Your private collection of character references.'),
+        h('p.eyebrow', 'Private collection'),
+        h('h1.title', 'Characters', h('span.title-dot', '.')),
+        h('p.muted', 'Your private collection of character references. Sign in with your email to continue.'),
         step1, step2,
       ),
     ),

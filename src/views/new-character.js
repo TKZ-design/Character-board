@@ -29,7 +29,7 @@ export function openNewCharacter(initialFiles = []) {
   const name = h('input', { required: true, placeholder: 'e.g. Captain Vex', maxlength: 200, autocomplete: 'off' });
   const tags = tagInput();
   const drop = h('button.dropzone', { type: 'button', onclick: () => pickFiles(addPending) },
-    icon('upload'), h('span', h('strong', 'Add images'), h('br'), h('span.muted.small', 'Drop, paste (Ctrl+V) or tap to choose')));
+    h('span', h('strong', 'Add images'), h('br'), h('span.muted.small', 'Drop, paste (Ctrl+V) or tap to choose')));
   dropZone(drop, addPending);
 
   const submit = h('button.btn.primary', { type: 'submit' }, 'Create');

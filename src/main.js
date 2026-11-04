@@ -5,7 +5,7 @@ import { toggleTheme, currentTheme } from './theme.js';
 import { setRerender, setPasteTarget, getPasteTarget, go } from './nav.js';
 import { filesFromPaste } from './upload.js';
 import { renderLogin } from './views/login.js';
-import { renderGrid } from './views/grid.js';
+import { renderGrid, filterBar } from './views/grid.js';
 import { renderDetail, resetEditing } from './views/detail.js';
 import { openNewCharacter } from './views/new-character.js';
 import { renderCompare } from './views/compare.js';
@@ -22,22 +22,38 @@ function route() {
 // ---------------- header ----------------
 function header(r) {
   const searchInput = h('input#search', {
-    type: 'search', placeholder: 'Search by name…', value: state.search, 'aria-label': 'Search characters',
+    type: 'search', placeholder: 'By name', value: state.search,
     oninput: (e) => { state.search = e.target.value; renderView(); },
   });
   const onGrid = r.view === '';
-  return h('header.topbar',
-    onGrid
-      ? h('a.brand', { href: '#/', 'aria-label': 'Home' }, h('img', { src: './icons/icon.svg', alt: '', width: 28, height: 28 }), h('span.brand-name', 'Inspiration Board'))
-      : h('a.btn.ghost.back', { href: '#/' }, icon('back'), h('span', 'Board')),
-    onGrid ? h('label.search', icon('search'), searchInput) : h('div.spacer'),
-    h('div.actions',
-      h('button.btn.random-btn', { onclick: goRandom, title: 'Random inspiration (R) — respects your filters' }, icon('dice'), h('span.hide-sm', 'Random')),
-      h('button.btn.primary.new-btn', { onclick: () => openNewCharacter(), title: 'New character' }, icon('plus'), h('span.hide-sm', 'New')),
+  const actions = h('div.actions',
+    h('button.btn.random-btn', { onclick: goRandom, title: 'Random inspiration (R) — respects your filters' }, 'Random'),
+    onGrid && state.characters.length
+      ? h(`button.btn.compare-btn${state.compareMode ? '.on' : ''}`, {
+          'aria-pressed': String(state.compareMode),
+          title: 'Pick 2–3 characters to view side by side',
+          onclick: () => { state.compareMode = !state.compareMode; state.compareSel = []; render(); },
+        }, 'Compare')
+      : null,
+    h('button.btn.primary.new-btn', { onclick: () => openNewCharacter(), title: 'New character (N)' }, 'Add character'),
+    h('div.utility',
       h('button.icon-btn', { onclick: () => { toggleTheme(); render(); }, title: 'Toggle light/dark mode', 'aria-label': 'Toggle light/dark mode' },
         icon(currentTheme() === 'dark' ? 'sun' : 'moon')),
-      menuButton(),
-    ),
+      menuButton()),
+  );
+  if (!onGrid) {
+    return h('header.topbar',
+      h('a.back', { href: '#/' }, icon('back'), h('span', 'Collection')),
+      actions);
+  }
+  const n = state.characters.length;
+  return h('header.masthead',
+    h('div.masthead-row',
+      h('div.titleblock',
+        h('p.eyebrow', `Collection · ${n} ${n === 1 ? 'entry' : 'entries'}`),
+        h('h1.title', 'Characters', h('span.title-dot', '.'))),
+      actions),
+    filterBar(searchInput, render),
   );
 }
 
@@ -72,7 +88,7 @@ function renderView() {
   setPasteTarget(null);
   if (r.view === 'c') renderDetail(viewEl, r.arg);
   else if (r.view === 'compare') renderCompare(viewEl, r.arg);
-  else renderGrid(viewEl, renderView);
+  else renderGrid(viewEl, render); // full render so the header's filters/Compare stay in sync
 }
 
 function render() {
@@ -111,7 +127,7 @@ document.addEventListener('paste', (e) => {
   e.preventDefault();
   deliverFiles(files);
 });
-const dropOverlay = h('div.drop-overlay', h('div', icon('upload', 'big'), h('p', 'Drop images to add them')));
+const dropOverlay = h('div.drop-overlay', h('div', h('p', 'Drop images to add them')));
 document.body.append(dropOverlay);
 let dragDepth = 0;
 const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');

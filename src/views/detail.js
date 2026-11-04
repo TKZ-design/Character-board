@@ -27,7 +27,7 @@ export function renderDetail(root, id) {
         h('button.icon-btn.small.danger', { title: 'Delete image', 'aria-label': 'Delete image', onclick: () => removeImage(c, im) }, icon('trash'))),
     )),
     h('button.dropzone.thumb-add', { onclick: () => pickFiles(upload) },
-      icon('upload'), h('span', h('strong', 'Add images'), h('br'), h('span.muted.small', 'Drop, paste or tap'))),
+      h('span', h('strong', 'Add images'), h('br'), h('span.muted.small', 'Drop, paste or tap'))),
   );
   loadGalleryUrls(gallery);
 
@@ -48,10 +48,10 @@ function infoView(c) {
           'aria-pressed': String(!!c.is_favorite),
           onclick: () => toggleFavorite(c, rerender).catch(errorToast),
         }, icon('star')),
-        h('button.btn', { onclick: () => { editing = c.id; rerender(); } }, icon('edit'), 'Edit'),
+        h('button.btn', { onclick: () => { editing = c.id; rerender(); } }, 'Edit'),
       )),
     c.tags?.length
-      ? h('div.chips', c.tags.map((t) => h('a.chip', { href: '#/', onclick: () => { state.tags.clear(); state.tags.add(t); state.search = ''; } }, t)))
+      ? h('div.chips.inline', c.tags.map((t) => h('a.chip', { href: '#/', onclick: () => { state.tags.clear(); state.tags.add(t); state.search = ''; } }, t)))
       : null,
     h('h4.label', 'Notes'),
     c.notes?.trim() ? h('div.notes', c.notes) : h('p.muted', 'No notes yet.'),
@@ -60,7 +60,7 @@ function infoView(c) {
       ? h('ul.links', links.map(([l, href]) => h('li', h('a', { href, target: '_blank', rel: 'noopener noreferrer' }, icon('link'), prettyUrl(href)))))
       : h('p.muted', 'No source links yet.'),
     h('div.danger-zone',
-      h('button.btn.danger.ghost', { onclick: () => removeCharacter(c) }, icon('trash'), 'Delete character')),
+      h('button.btn.danger.ghost', { onclick: () => removeCharacter(c) }, 'Delete character')),
   );
 }
 
@@ -71,7 +71,7 @@ function editForm(c) {
   notes.value = c.notes || '';
   const links = h('textarea', { rows: 4, placeholder: 'One link per line\nhttps://…', autocapitalize: 'off', spellcheck: false });
   links.value = (c.links || []).join('\n');
-  const save = h('button.btn.primary', { type: 'submit' }, icon('check'), 'Save');
+  const save = h('button.btn.primary', { type: 'submit' }, 'Save');
 
   return h('form.info.stack', {
     onsubmit: async (e) => {
