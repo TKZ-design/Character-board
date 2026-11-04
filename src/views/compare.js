@@ -1,5 +1,5 @@
 import { h, icon, prettyUrl, safeHref, errorToast } from '../ui.js';
-import { api, findChar, coverOf, toggleFavorite } from '../state.js';
+import { api, findChar, coverOf, toggleFavorite, tagNamesOf } from '../state.js';
 import { openLightbox } from './lightbox.js';
 import { rerender } from '../nav.js';
 
@@ -28,7 +28,8 @@ export function renderCompare(root, arg) {
           'aria-label': c.is_favorite ? 'Remove from favorites' : 'Add to favorites',
           onclick: () => toggleFavorite(c, rerender).catch(errorToast),
         }, icon('star'))),
-      c.tags?.length ? h('div.chips.inline', c.tags.map((t) => h('span.chip', t))) : null,
+      c.source ? h('p.source', c.source) : null,
+      tagNamesOf(c).length ? h('div.chips.inline', tagNamesOf(c).map((t) => h('span.chip', t))) : null,
       h('h4.label', 'Notes'),
       c.notes?.trim() ? h('div.notes', c.notes) : h('p.muted', '—'),
       links.length ? [h('h4.label', 'Sources'), h('ul.links', links.map((href) => h('li', h('a', { href, target: '_blank', rel: 'noopener noreferrer' }, icon('link'), prettyUrl(href)))))] : null,

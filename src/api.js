@@ -47,13 +47,20 @@ export const realApi = {
   // ---------- characters ----------
   async listCharacters() {
     const rows = check(
-      await supabase.from('characters').select('*, images!images_character_id_fkey(*)').order('created_at', { ascending: false }),
+      await supabase.from('characters')
+        .select('*, images!images_character_id_fkey(*), character_tags(tag_id)')
+        .order('created_at', { ascending: false }),
     );
-    return rows.map(sortImages);
+    return rows.map((c) => {
+      c.tag_ids = (c.character_tags || []).map((x) => x.tag_id);
+      delete c.character_tags;
+      return sortImages(c);
+    });
   },
   async createCharacter(fields) {
     const row = check(await supabase.from('characters').insert(fields).select().single());
     row.images = [];
+    row.tag_ids = [];
     return row;
   },
   async updateCharacter(id, patch) {
@@ -81,7 +88,7 @@ export const realApi = {
       return check(
         await supabase
           .from('images')
-          .insert({ id, character_id: characterId, path, thumb_path, width: img.width, height: img.height, position })
+          .insert({ id, character_id: characterId, path, thumb_path, width: img.width, height: img.height, position, sha256: img.sha256 || null })
           .select()
           .single(),
       );
@@ -93,6 +100,39 @@ export const realApi = {
   async deleteImage(image) {
     check(await supabase.from('images').delete().eq('id', image.id));
     await supabase.storage.from(BUCKET).remove([image.path, image.thumb_path].filter(Boolean));
+  },
+
+  // ---------- tags & tag groups ----------
+  async listTags() {
+    return check(await supabase.from('tags').select('id, name, group_id').order('name'));
+  },
+  async listGroups() {
+    return check(await supabase.from('tag_groups').select('id, name').order('name'));
+  },
+  /** Replace a character's tags by name (missing tags are created). Returns the character's tag rows. */
+  async setCharacterTags(characterId, names) {
+    return check(await supabase.rpc('set_character_tags', { p_character_id: characterId, p_names: names }));
+  },
+  async createTag(fields) {
+    return check(await supabase.from('tags').insert(fields).select('id, name, group_id').single());
+  },
+  async updateTag(id, patch) {
+    return check(await supabase.from('tags').update(patch).eq('id', id).select('id, name, group_id').single());
+  },
+  async deleteTag(id) {
+    check(await supabase.from('tags').delete().eq('id', id));
+  },
+  async mergeTags(sourceIds, targetId) {
+    check(await supabase.rpc('merge_tags', { p_source_ids: sourceIds, p_target_id: targetId }));
+  },
+  async createGroup(name) {
+    return check(await supabase.from('tag_groups').insert({ name }).select('id, name').single());
+  },
+  async updateGroup(id, patch) {
+    return check(await supabase.from('tag_groups').update(patch).eq('id', id).select('id, name').single());
+  },
+  async deleteGroup(id) {
+    check(await supabase.from('tag_groups').delete().eq('id', id));
   },
 
   /** Returns { path: signedUrl } for the given storage paths (cached). */

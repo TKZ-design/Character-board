@@ -1,4 +1,4 @@
-import { api, state } from './state.js';
+import { api, state, tagsOf, groupById } from './state.js';
 import { toast, errorToast } from './ui.js';
 
 const safe = (s) => (s || 'untitled').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) || 'untitled';
@@ -26,7 +26,9 @@ export async function exportZip() {
       const cover = files.find((f) => f.im.id === c.cover_image_id) || files[0];
       meta.push({
         name: c.name,
-        tags: c.tags || [],
+        source: c.source || '',
+        tags: tagsOf(c).map((t) => t.name),
+        tag_groups: Object.fromEntries(tagsOf(c).map((t) => [t.name, groupById(t.group_id)?.name || null])),
         notes: c.notes || '',
         links: c.links || [],
         favorite: !!c.is_favorite,

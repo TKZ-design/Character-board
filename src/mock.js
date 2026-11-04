@@ -1,10 +1,15 @@
 // DEVELOPMENT ONLY: an in-memory fake backend, enabled with `?mock` on the
 // dev server. Never included in the production build.
+import { cleanTag, tagKey } from './text.js';
+
 const delay = (ms = 60) => new Promise((r) => setTimeout(r, ms));
 const now = () => new Date().toISOString();
 const blobs = new Map(); // path -> Blob
 const user = { id: 'mock-user', email: 'you@example.com' };
 let chars = [];
+let tags = [];      // { id, name, group_id }
+let groups = [];    // { id, name }
+let links = [];     // { character_id, tag_id }
 
 function swatch(color, w, h, label) {
   const c = document.createElement('canvas');
@@ -16,24 +21,44 @@ function swatch(color, w, h, label) {
   return new Promise((r) => c.toBlob(r, 'image/png'));
 }
 
+function uniqueErr(what) {
+  return Object.assign(new Error(`duplicate key value violates unique constraint "${what}_user_name_key"`), { code: '23505' });
+}
+function ensureTag(name) {
+  const n = cleanTag(name);
+  if (!n) return null;
+  let t = tags.find((x) => tagKey(x.name) === tagKey(n));
+  if (!t) { t = { id: crypto.randomUUID(), name: n, group_id: null }; tags.push(t); }
+  return t;
+}
+const tagIdsOf = (cid) => links.filter((l) => l.character_id === cid).map((l) => l.tag_id);
+const withTags = (c) => ({ ...structuredClone(c), tag_ids: tagIdsOf(c.id) });
+
 async function seed() {
+  groups = [{ id: crypto.randomUUID(), name: 'Genre' }, { id: crypto.randomUUID(), name: 'Role' }];
+  const [genre, role] = groups;
   const demo = [
-    ['Captain Vex', ['sci-fi', 'villain'], '#7c3aed', 300, 420],
-    ['Moss Witch', ['fantasy', 'hero'], '#15803d', 400, 300],
-    ['Detective Oona', ['noir'], '#b45309', 300, 300],
-    ['Pip the Courier', ['fantasy', 'sidekick'], '#0e7490', 300, 500],
+    ['Captain Vex', 'Original', ['Sci-fi', 'Villain'], '#7c3aed', 300, 420],
+    ['Moss Witch', 'Hollow Tales', ['Fantasy', 'Hero'], '#15803d', 400, 300],
+    ['Detective Oona', 'Original', ['Noir'], '#b45309', 300, 300],
+    ['Pip the Courier', '', ['Fantasy', 'Sidekick', 'cozy'], '#0e7490', 300, 500],
   ];
-  for (const [name, tags, color, w, h] of demo) {
+  for (const [name, source, tagNames, color, w, h] of demo) {
     const id = crypto.randomUUID();
     const imgs = [];
     for (let i = 0; i < 2; i++) {
       const iid = crypto.randomUUID();
       const path = `${user.id}/${id}/${iid}.png`;
       blobs.set(path, await swatch(i ? '#334155' : color, w, h, name.split(' ')[0]));
-      imgs.push({ id: iid, character_id: id, path, thumb_path: path, width: w, height: h, position: i, created_at: now() });
+      imgs.push({ id: iid, character_id: id, path, thumb_path: path, width: w, height: h, position: i, sha256: null, created_at: now() });
     }
-    chars.push({ id, user_id: user.id, name, tags, notes: `Notes about ${name}.`, links: ['https://example.com/ref'],
+    chars.push({ id, user_id: user.id, name, source, notes: `Notes about ${name}.`, links: ['https://example.com/ref'],
       cover_image_id: null, is_favorite: false, created_at: now(), updated_at: now(), images: imgs });
+    for (const n of tagNames) links.push({ character_id: id, tag_id: ensureTag(n).id });
+  }
+  for (const t of tags) {
+    if (['Sci-fi', 'Fantasy', 'Noir'].includes(t.name)) t.group_id = genre.id;
+    if (['Villain', 'Hero', 'Sidekick'].includes(t.name)) t.group_id = role.id;
   }
 }
 
@@ -44,30 +69,93 @@ export const mockApi = {
   async sendMagicLink() { await delay(); },
   async verifyCode() { await delay(); },
   async signOut() { location.reload(); },
-  async listCharacters() { await delay(); return structuredClone(chars); },
+  async listCharacters() { await delay(); return chars.map(withTags); },
   async createCharacter(f) {
-    const c = { id: crypto.randomUUID(), user_id: user.id, tags: [], notes: '', links: [], cover_image_id: null,
+    const c = { id: crypto.randomUUID(), user_id: user.id, source: '', notes: '', links: [], cover_image_id: null,
       is_favorite: false, ...f, created_at: now(), updated_at: now(), images: [] };
-    chars.unshift(c); return structuredClone(c);
+    chars.unshift(c); return withTags(c);
   },
   async updateCharacter(id, patch) {
     const c = chars.find((x) => x.id === id); Object.assign(c, patch, { updated_at: now() });
     const { images, ...row } = c; return structuredClone(row);
   },
-  async deleteCharacter(ch) { chars = chars.filter((c) => c.id !== ch.id); },
+  async deleteCharacter(ch) {
+    chars = chars.filter((c) => c.id !== ch.id);
+    links = links.filter((l) => l.character_id !== ch.id);
+  },
   async uploadImage(_u, characterId, img, position) {
     await delay(150);
     const id = crypto.randomUUID();
     const path = `${user.id}/${characterId}/${id}.${img.ext}`;
     const thumb_path = `${user.id}/${characterId}/${id}_thumb.${img.ext}`;
     blobs.set(path, img.full); blobs.set(thumb_path, img.thumb);
-    const row = { id, character_id: characterId, path, thumb_path, width: img.width, height: img.height, position, created_at: now() };
+    const row = { id, character_id: characterId, path, thumb_path, width: img.width, height: img.height, position,
+      sha256: img.sha256 || null, created_at: now() };
     chars.find((c) => c.id === characterId).images.push(row);
     return structuredClone(row);
   },
   async deleteImage(image) {
     for (const c of chars) c.images = c.images.filter((i) => i.id !== image.id);
   },
+
+  // ---------- tags ----------
+  async listTags() { await delay(); return structuredClone(tags); },
+  async listGroups() { await delay(); return structuredClone(groups); },
+  async setCharacterTags(characterId, names) {
+    await delay();
+    const ids = [...new Set(names.map(ensureTag).filter(Boolean).map((t) => t.id))];
+    links = links.filter((l) => l.character_id !== characterId).concat(ids.map((tag_id) => ({ character_id: characterId, tag_id })));
+    return structuredClone(tags.filter((t) => ids.includes(t.id)));
+  },
+  async createTag({ name, group_id = null }) {
+    await delay();
+    const n = cleanTag(name);
+    if (tags.some((t) => tagKey(t.name) === tagKey(n))) throw uniqueErr('tags');
+    const t = { id: crypto.randomUUID(), name: n, group_id };
+    tags.push(t); return structuredClone(t);
+  },
+  async updateTag(id, patch) {
+    await delay();
+    const t = tags.find((x) => x.id === id);
+    if (patch.name != null) {
+      patch = { ...patch, name: cleanTag(patch.name) };
+      if (tags.some((x) => x.id !== id && tagKey(x.name) === tagKey(patch.name))) throw uniqueErr('tags');
+    }
+    Object.assign(t, patch); return structuredClone(t);
+  },
+  async deleteTag(id) {
+    await delay();
+    tags = tags.filter((t) => t.id !== id);
+    links = links.filter((l) => l.tag_id !== id);
+  },
+  async mergeTags(sourceIds, targetId) {
+    await delay();
+    const src = new Set(sourceIds.filter((id) => id !== targetId));
+    for (const l of links.filter((x) => src.has(x.tag_id))) {
+      if (!links.some((x) => x.character_id === l.character_id && x.tag_id === targetId)) links.push({ character_id: l.character_id, tag_id: targetId });
+    }
+    links = links.filter((l) => !src.has(l.tag_id));
+    tags = tags.filter((t) => !src.has(t.id));
+  },
+  async createGroup(name) {
+    await delay();
+    const n = cleanTag(name);
+    if (groups.some((g) => tagKey(g.name) === tagKey(n))) throw uniqueErr('tag_groups');
+    const g = { id: crypto.randomUUID(), name: n };
+    groups.push(g); return structuredClone(g);
+  },
+  async updateGroup(id, patch) {
+    await delay();
+    const n = cleanTag(patch.name);
+    if (groups.some((g) => g.id !== id && tagKey(g.name) === tagKey(n))) throw uniqueErr('tag_groups');
+    const g = groups.find((x) => x.id === id); g.name = n; return structuredClone(g);
+  },
+  async deleteGroup(id) {
+    await delay();
+    groups = groups.filter((g) => g.id !== id);
+    for (const t of tags) if (t.group_id === id) t.group_id = null;
+  },
+
   async getUrls(paths) {
     const out = {};
     for (const p of paths) if (blobs.has(p)) out[p] = (blobs.get(p).__url ||= URL.createObjectURL(blobs.get(p)));
