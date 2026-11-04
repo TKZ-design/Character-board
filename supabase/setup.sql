@@ -2,6 +2,7 @@
 --  Character Inspiration Board — Supabase setup
 --  Paste this whole file into Supabase → SQL Editor → New query → Run.
 --  It is safe to run more than once (it only adds what is missing).
+--  AFTER this file, also run every file in supabase/migrations/ (oldest first).
 -- =====================================================================
 
 -- ---------- Tables ----------------------------------------------------
@@ -32,7 +33,13 @@ create table if not exists public.images (
 );
 
 create index if not exists characters_user_idx  on public.characters (user_id);
-create index if not exists characters_tags_idx  on public.characters using gin (tags);
+-- (the old tags column is renamed by migrations/20261104_01…, so only index it while it exists)
+do $$ begin
+  if exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'characters' and column_name = 'tags') then
+    create index if not exists characters_tags_idx on public.characters using gin (tags);
+  end if;
+end $$;
 create index if not exists images_character_idx on public.images (character_id);
 create index if not exists images_user_idx      on public.images (user_id);
 

@@ -9,6 +9,10 @@ import { renderGrid, filterBar } from './views/grid.js';
 import { renderDetail, resetEditing } from './views/detail.js';
 import { openNewCharacter } from './views/new-character.js';
 import { renderCompare } from './views/compare.js';
+import { renderTags } from './views/tags.js';
+import { openImageChooser } from './views/image-chooser.js';
+import { pasteButton } from './paste.js';
+import { takeSharedFiles } from './share.js';
 import { exportZip } from './export.js';
 
 const app = document.getElementById('app');
@@ -22,11 +26,12 @@ function route() {
 // ---------------- header ----------------
 function header(r) {
   const searchInput = h('input#search', {
-    type: 'search', placeholder: 'By name', value: state.search,
+    type: 'search', placeholder: 'Name or source', value: state.search,
     oninput: (e) => { state.search = e.target.value; renderView(); },
   });
   const onGrid = r.view === '';
   const actions = h('div.actions',
+    h(`a.btn.tags-link${r.view === 'tags' ? '.on' : ''}`, { href: '#/tags', title: 'Manage tags and tag groups (T)', 'aria-current': r.view === 'tags' ? 'page' : null }, 'Tags'),
     h('button.btn.random-btn', { onclick: goRandom, title: 'Random inspiration (R) — respects your filters' }, 'Random'),
     onGrid && state.characters.length
       ? h(`button.btn.compare-btn${state.compareMode ? '.on' : ''}`, {
@@ -35,6 +40,7 @@ function header(r) {
           onclick: () => { state.compareMode = !state.compareMode; state.compareSel = []; render(); },
         }, 'Compare')
       : null,
+    onGrid ? pasteButton((files) => openImageChooser(files), { label: 'Paste' }) : null,
     h('button.btn.primary.new-btn', { onclick: () => openNewCharacter(), title: 'New character (N)' }, 'Add character'),
     h('div.utility',
       h('button.icon-btn', { onclick: () => { toggleTheme(); render(); }, title: 'Toggle light/dark mode', 'aria-label': 'Toggle light/dark mode' },
@@ -88,6 +94,7 @@ function renderView() {
   setPasteTarget(null);
   if (r.view === 'c') renderDetail(viewEl, r.arg);
   else if (r.view === 'compare') renderCompare(viewEl, r.arg);
+  else if (r.view === 'tags') renderTags(viewEl);
   else renderGrid(viewEl, render); // full render so the header's filters/Compare stay in sync
 }
 
@@ -119,7 +126,7 @@ function deliverFiles(files) {
   if (!state.user || !files.length) return;
   const target = getPasteTarget();
   if (target) target(files);
-  else openNewCharacter(files); // on the board: start a new character with them
+  else openImageChooser(files); // ask: new character, or add to an existing one?
 }
 document.addEventListener('paste', (e) => {
   const files = filesFromPaste(e);
@@ -149,20 +156,30 @@ document.addEventListener('keydown', (e) => {
   if (e.key === '/' ) { const s = document.getElementById('search'); if (s) { e.preventDefault(); s.focus(); } }
   else if (e.key === 'n') { e.preventDefault(); openNewCharacter(); }
   else if (e.key === 'r') { e.preventDefault(); goRandom(); }
+  else if (e.key === 't') { e.preventDefault(); go('#/tags'); }
   else if (e.key === 'Escape' && route().view) go('#/');
 });
 
 // ---------------- boot ----------------
 async function loadData() {
   try {
-    state.characters = await api.listCharacters();
+    const [characters, tags, groups] = await Promise.all([api.listCharacters(), api.listTags(), api.listGroups()]);
+    state.characters = characters;
+    state.tagList = tags.map((t) => ({ id: t.id, name: t.name, group_id: t.group_id ?? null }));
+    state.groups = groups;
     state.loaded = true;
   } catch (e) {
     errorToast(e);
-    if (/relation .* does not exist|schema cache/i.test(e.message || '')) {
-      toast('Database tables are missing — run supabase/setup.sql (see README).', { type: 'error', timeout: 0 });
+    if (/relation .* does not exist|schema cache|column .* does not exist/i.test(e.message || '')) {
+      toast('The database needs an update — run the SQL files in supabase/migrations (see README).', { type: 'error', timeout: 0 });
     }
   }
+}
+
+/** Images shared from another app (Android Share → Characters), waiting in the service worker's cache. */
+async function pickUpShared() {
+  const files = await takeSharedFiles();
+  if (files.length) openImageChooser(files);
 }
 
 async function onUser(user) {
@@ -175,18 +192,29 @@ async function onUser(user) {
     lastRoute = '';
     app.replaceChildren(); // force header/view re-mount
   } else {
-    state.characters = [];
+    state.characters = []; state.tagList = []; state.groups = []; state.tags.clear();
   }
   render();
+  if (user && state.loaded) pickUpShared();
 }
 
 async function boot() {
-  if (import.meta.env.DEV) {
-    // development only — stripped from the production build
-    if (new URLSearchParams(location.search).has('mock')) setApi((await import('./mock.js')).mockApi);
+  if (import.meta.env.DEV || import.meta.env.VITE_ALLOW_MOCK === '1') {
+    // development only — stripped from the production build (VITE_ALLOW_MOCK is only for local testing of a build)
+    let mock = new URLSearchParams(location.search).has('mock');
+    try { if (mock) sessionStorage.setItem('cb-mock', '1'); else mock = sessionStorage.getItem('cb-mock') === '1'; } catch {}
+    if (mock) setApi((await import('./mock.js')).mockApi);
   }
   // Clean "?code=…" left by the magic-link redirect once it has been used
   const params = new URLSearchParams(location.search);
+  // "?shared=…" is where the service worker sends you after an Android share
+  if (params.has('shared')) {
+    const how = params.get('shared');
+    params.delete('shared');
+    history.replaceState(null, '', location.pathname + (params.size ? `?${params}` : '') + location.hash);
+    if (how === '0') toast('Nothing to add — the share didn’t contain an image.');
+    if (how === 'error') toast('Couldn’t receive the shared image. Try again, or paste it instead.', { type: 'error' });
+  }
   api.onAuthChange((u) => {
     if (params.has('code')) history.replaceState(null, '', location.pathname + location.hash);
     // don't await Supabase calls inside its own auth callback (can deadlock)

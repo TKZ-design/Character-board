@@ -1,16 +1,20 @@
 import { api, state } from './state.js';
 import { compressImage, isImageFile } from './compress.js';
 import { toast } from './ui.js';
+import { confirmDuplicates, hashFile } from './hash.js';
 
 /**
  * Compress and upload files to a character, one at a time.
  * `onEach` is called after every successful upload so the UI can refresh.
  */
 export async function addImages(character, files, onEach) {
-  const list = [...files].filter(isImageFile);
-  const skipped = files.length - list.length;
+  const images = [...files].filter(isImageFile);
+  const skipped = files.length - images.length;
   if (skipped) toast(`${skipped} file(s) skipped — not an image`, { type: 'error' });
-  if (!list.length) return;
+  if (!images.length) return;
+  // warn about exact duplicates (and drop repeats within this batch)
+  const list = await confirmDuplicates(images);
+  if (!list.length) { toast('Nothing new to add — those images are already stored'); return; }
 
   const t = toast('', { timeout: 0 });
   let done = 0, failed = 0;
@@ -18,6 +22,7 @@ export async function addImages(character, files, onEach) {
     t.update(`Uploading ${done + failed + 1} of ${list.length}…`);
     try {
       const img = await compressImage(file);
+      img.sha256 = await hashFile(file);
       const pos = Math.max(-1, ...character.images.map((i) => i.position ?? 0)) + 1;
       const row = await api.uploadImage(state.user.id, character.id, img, pos);
       character.images.push(row);

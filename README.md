@@ -9,10 +9,12 @@ Your data lives in **your own Supabase project**, and only you can see it once y
 
 ## What it does
 
-- **Characters** with a name, any number of images, tags, notes and source links
-- **Add images** by dragging them onto the page, choosing files (works with your phone's photo library/camera), or pasting with **Ctrl+V / Cmd+V**
+- **Characters** with a name, an optional **source** (e.g. *Original*, a game or an anime), any number of images, tags, notes and source links
+- **Add images** by dragging them onto the page, choosing files (works with your phone's photo library/camera), pasting with **Ctrl+V / Cmd+V**, the **Paste** button, or — on Android — **sharing** them from any app (see below). On the board you're asked whether they're for a **new character** or should be **added to an existing one** (searchable by name or source)
+- **Tags page** (`Tags` in the header, shortcut `T`): every tag with how many characters use it, organised into **groups** you create (e.g. Genre, Role, Mood). Create, rename, merge, move and delete tags; renaming updates every character at once. Tags ignore upper/lower case and extra spaces (“Mage” = “mage ”). When tagging a character, existing tags are suggested (with their group) as you type
+- **Duplicate protection**: while you type a new character's name you'll see characters with the same or a similar name (Kael / Kaell). Same name **and** same source gets a strong warning. Every uploaded image is fingerprinted, so re-adding the exact same image gets you a warning too
 - Images are **shrunk in your browser before uploading** (max 2000 px, WebP or JPEG), so they take up less storage
-- **Masonry grid** with **search by name** and **filtering by one or more tags**
+- **Masonry grid** with **search by name or source** and **filtering by one or more tags** (grouped like on the Tags page)
 - **Detail view** with a gallery, full-size zoom (click the image, use arrow keys or swipe), editing and delete
 - **Cover image**: hover an image in a character's gallery (always visible on phones) and press the picture icon to make it the image shown on the grid
 - **Favorites**: star characters (on the card or in the detail view) and use the **★ Favorites** button to show only those
@@ -47,6 +49,16 @@ That creates:
 > It's safe to run the file again later (for example after an update) — it only adds what's missing and never deletes your data.
 >
 > If Supabase shows a warning like *"This query has destructive operations"*, that's because the script replaces its own security rules (`drop policy if exists …`) with fresh copies. Your data is not touched — click **Run this query**.
+
+### 1b. Run the update files (Supabase SQL Editor)
+
+New features sometimes need extra database pieces. They live in [`supabase/migrations/`](supabase/migrations/), one file per update, named by date. Run **each file once, oldest first**, the same way as `setup.sql` (New query → paste → Run). They're all safe to run again.
+
+| File | Adds |
+| --- | --- |
+| `20261104_01_tags_source_duplicates.sql` | Tag & tag-group tables (your existing tags are moved over automatically), the *Source* field, image fingerprints for the duplicate warning |
+
+> If the app ever says *"The database needs an update"*, a file in that folder hasn't been run yet.
 
 ### 2. Configure login (Supabase Authentication)
 
@@ -97,6 +109,11 @@ The app logs you in with a **magic link** sent to your email. Supabase needs to 
 ### On Android (Chrome)
 1. Open the address in **Chrome**.
 2. Tap **⋮ → Install app** (or **Add to Home screen**), then **Install**.
+3. Once installed, **Characters** appears in Android's **Share** sheet: in your gallery, browser or any other app, tap **Share → Characters** on an image and it opens straight to *New character / Add to existing*.
+   (If you installed the app before this feature existed and it doesn't show up in the Share sheet, remove the app from your home screen and install it again. Sharing into web apps isn't supported on iPhone — use the **Paste** button there.)
+
+### Pasting on a phone
+Copy an image in another app, open Characters and tap **Paste** (on the board, in *New character*, or under *Add images* on a character). Your browser may ask for permission first. If it blocks access, a box appears instead: **long-press it and choose Paste**.
 
 ---
 
@@ -115,12 +132,15 @@ The app logs you in with a **magic link** sent to your email. Supabase needs to 
   Add `?mock` to the URL (http://localhost:5173/?mock) to try the interface with fake in-memory data and no login — this only exists in development and is never included in the published app.
 - `npm run build` creates the production site in `dist/`.
 - The deploy workflow lives in `.github/workflows/deploy.yml`.
-- Database / storage / security rules: `supabase/setup.sql`.
+- Database / storage / security rules: `supabase/setup.sql`, then the files in `supabase/migrations/`.
+- `npm test` runs the unit tests (name matching and tag rules).
 
 | File | What it is |
 | --- | --- |
 | `src/main.js` | App shell: routing, header, paste & drop handling, login state |
 | `src/api.js` | Everything that talks to Supabase |
 | `src/compress.js` | In-browser image resizing/compression |
-| `src/views/` | The screens: login, grid, detail, dialogs, lightbox |
+| `src/views/` | The screens: login, grid, detail, tags, dialogs, lightbox |
+| `src/text.js` | Tag clean-up and the "similar name" matching |
+| `src/hash.js`, `src/paste.js`, `src/share.js` | Duplicate-image check, Paste button, Android share target |
 | `public/sw.js`, `public/manifest.webmanifest` | What makes it installable (PWA) |

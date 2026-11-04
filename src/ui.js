@@ -53,6 +53,10 @@ const P = {
   download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
   cover: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15h18"/><path d="m8 11 2-2 2 2 3-3 3 3"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
+  paste: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
+  merge: '<path d="m8 6 4-4 4 4"/><path d="M12 2v10.3a4 4 0 0 1-1.2 2.9L4 22"/><path d="m20 22-5-5"/>',
+  tag: '<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.5"/>',
+  alert: '<path d="M12 3 2 21h20L12 3z"/><path d="M12 10v4M12 17.5v.5"/>',
 };
 export function icon(name, cls = '') {
   const span = document.createElement('span');
@@ -103,6 +107,37 @@ export function confirmDialog(title, message, { okText = 'Delete', danger = true
       { onClose: () => resolve(result) },
     );
     dlg.querySelector('.btn.danger, .btn.primary').focus();
+  });
+}
+
+/** Ask for one line of text. Resolves to the trimmed text, or null if cancelled. */
+export function promptDialog(title, { label = 'Name', value = '', okText = 'Save', placeholder = '', maxlength = 60, extra = null, validate } = {}) {
+  return new Promise((resolve) => {
+    let result = null;
+    const input = h('input', { value, placeholder, maxlength, required: true, autocomplete: 'off', enterkeyhint: 'done' });
+    const err = h('p.field-error', { role: 'alert', hidden: true });
+    const dlg = modal(
+      h('form.dialog-body', {
+        method: 'dialog',
+        onsubmit: (e) => {
+          const v = input.value.trim();
+          const problem = !v ? 'Please enter a name.' : validate?.(v);
+          if (problem) { e.preventDefault(); err.textContent = problem; err.hidden = false; input.focus(); return; }
+          result = v;
+        },
+      },
+        h('h2', title),
+        h('label.field', h('span', label), input),
+        err,
+        extra,
+        h('div.row.end',
+          h('button.btn', { type: 'button', onclick: () => dlg.close() }, 'Cancel'),
+          h('button.btn.primary', { type: 'submit' }, okText)),
+      ),
+      { onClose: () => resolve(result) },
+    );
+    input.focus();
+    input.select();
   });
 }
 

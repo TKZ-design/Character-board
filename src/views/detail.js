@@ -1,5 +1,6 @@
 import { h, icon, errorToast, toast, confirmDialog, prettyUrl, safeHref } from '../ui.js';
-import { api, state, findChar, coverOf, toggleFavorite } from '../state.js';
+import { api, state, findChar, coverOf, toggleFavorite, tagsOf, tagNamesOf, saveCharacterTags, allSources } from '../state.js';
+import { pasteButton } from '../paste.js';
 import { tagInput } from './tag-input.js';
 import { openLightbox } from './lightbox.js';
 import { addImages, pickFiles } from '../upload.js';
@@ -26,8 +27,10 @@ export function renderDetail(root, id) {
         im !== cover ? h('button.icon-btn.small', { title: 'Use as cover', 'aria-label': 'Use as cover image', onclick: () => setCover(c, im) }, icon('cover')) : null,
         h('button.icon-btn.small.danger', { title: 'Delete image', 'aria-label': 'Delete image', onclick: () => removeImage(c, im) }, icon('trash'))),
     )),
-    h('button.dropzone.thumb-add', { onclick: () => pickFiles(upload) },
-      h('span', h('strong', 'Add images'), h('br'), h('span.muted.small', 'Drop, paste or tap'))),
+    h('div.thumb-add-wrap',
+      h('button.dropzone.thumb-add', { onclick: () => pickFiles(upload) },
+        h('span', h('strong', 'Add images'), h('br'), h('span.muted.small', 'Drop, paste or tap'))),
+      pasteButton(upload)),
   );
   loadGalleryUrls(gallery);
 
@@ -40,7 +43,9 @@ function infoView(c) {
   const links = (c.links || []).map((l) => [l, safeHref(l)]).filter(([, href]) => href);
   return h('div.info',
     h('div.info-head',
-      h('h1', c.name),
+      h('div.info-title',
+        h('h1', c.name),
+        c.source ? h('p.source', c.source) : null),
       h('div.row',
         h(`button.icon-btn.star-btn${c.is_favorite ? '.on' : ''}`, {
           title: c.is_favorite ? 'Remove from favorites' : 'Add to favorites',
@@ -50,8 +55,8 @@ function infoView(c) {
         }, icon('star')),
         h('button.btn', { onclick: () => { editing = c.id; rerender(); } }, 'Edit'),
       )),
-    c.tags?.length
-      ? h('div.chips.inline', c.tags.map((t) => h('a.chip', { href: '#/', onclick: () => { state.tags.clear(); state.tags.add(t); state.search = ''; } }, t)))
+    tagsOf(c).length
+      ? h('div.chips.inline', tagsOf(c).map((t) => h('a.chip', { href: '#/', onclick: () => { state.tags.clear(); state.tags.add(t.id); state.search = ''; } }, t.name)))
       : null,
     h('h4.label', 'Notes'),
     c.notes?.trim() ? h('div.notes', c.notes) : h('p.muted', 'No notes yet.'),
@@ -66,7 +71,9 @@ function infoView(c) {
 
 function editForm(c) {
   const name = h('input', { value: c.name, required: true, maxlength: 200 });
-  const tags = tagInput(c.tags || []);
+  const source = h('input', { value: c.source || '', maxlength: 200, placeholder: 'e.g. Original, a game or anime', autocomplete: 'off', list: 'sources-edit' });
+  const sourcesList = h('datalist', { id: 'sources-edit' }, allSources().map((s) => h('option', { value: s })));
+  const tags = tagInput(tagNamesOf(c));
   const notes = h('textarea', { rows: 8, placeholder: 'Personality, backstory, palette ideas…' });
   notes.value = c.notes || '';
   const links = h('textarea', { rows: 4, placeholder: 'One link per line\nhttps://…', autocapitalize: 'off', spellcheck: false });
@@ -80,11 +87,12 @@ function editForm(c) {
       try {
         const patch = {
           name: name.value.trim(),
-          tags: tags.value(),
+          source: source.value.trim(),
           notes: notes.value,
           links: links.value.split(/\s*\n\s*/).map((s) => s.trim()).filter(Boolean),
         };
-        Object.assign(c, await api.updateCharacter(c.id, patch), { images: c.images });
+        Object.assign(c, await api.updateCharacter(c.id, patch), { images: c.images, tag_ids: c.tag_ids });
+        await saveCharacterTags(c, tags.value());
         editing = null;
         toast('Saved', { type: 'ok', timeout: 1500 });
         rerender();
@@ -93,6 +101,7 @@ function editForm(c) {
     onkeydown: (e) => { if (e.key === 'Escape') { e.preventDefault(); editing = null; rerender(); } },
   },
     h('label.field', h('span', 'Name'), name),
+    h('label.field', h('span', 'Source ', h('em.optional', 'optional')), source, sourcesList),
     h('label.field', h('span', 'Tags'), tags.el),
     h('label.field', h('span', 'Notes'), notes),
     h('label.field', h('span', 'Source links'), links),

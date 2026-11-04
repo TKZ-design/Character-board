@@ -1,12 +1,20 @@
 import { h, icon, errorToast, toast } from '../ui.js';
 import { go } from '../nav.js';
-import { api, state, allTags, filtered, hasFilters, coverOf, toggleFavorite } from '../state.js';
+import { api, state, filtered, hasFilters, coverOf, toggleFavorite, groupedTags, tagCounts, tagNamesOf } from '../state.js';
 import { openNewCharacter } from './new-character.js';
 
 /** Tag / favorites filters + search, shown under the title on the board. */
 export function filterBar(searchInput, rerender) {
-  const tags = allTags();
+  const counts = tagCounts();
+  // only tags that are actually used, organised by group
+  const sections = groupedTags({ filter: (t) => counts.get(t.id) > 0 });
+  const labelled = sections.some((s) => s.group);
   const favCount = state.characters.filter((c) => c.is_favorite).length;
+  const tagButton = (t) =>
+    h(`button.filter${state.tags.has(t.id) ? '.on' : ''}`, {
+      'aria-pressed': String(state.tags.has(t.id)),
+      onclick: () => { state.tags.has(t.id) ? state.tags.delete(t.id) : state.tags.add(t.id); rerender(); },
+    }, t.name, h('span.count', counts.get(t.id)));
   const filters = state.characters.length
     ? h('div.filters', { role: 'group', 'aria-label': 'Filter by tag' },
         h(`button.filter${state.tags.size ? '' : '.on'}`, {
@@ -14,11 +22,10 @@ export function filterBar(searchInput, rerender) {
           title: 'Show all tags',
           onclick: () => { state.tags.clear(); rerender(); },
         }, 'All'),
-        tags.map(({ tag, count }) =>
-          h(`button.filter${state.tags.has(tag) ? '.on' : ''}`, {
-            'aria-pressed': String(state.tags.has(tag)),
-            onclick: () => { state.tags.has(tag) ? state.tags.delete(tag) : state.tags.add(tag); rerender(); },
-          }, tag, h('span.count', count))),
+        sections.map((s) =>
+          h('div.filter-cluster', { role: 'group', 'aria-label': s.group ? s.group.name : 'Other tags' },
+            labelled ? h('span.filter-group', { 'aria-hidden': 'true' }, s.group ? s.group.name : 'Other') : null,
+            s.tags.map(tagButton))),
         h('span.filter-sep', { 'aria-hidden': 'true' }),
         h(`button.filter.fav-filter${state.favoritesOnly ? '.on' : ''}`, {
           'aria-pressed': String(state.favoritesOnly),
@@ -48,7 +55,7 @@ export function renderGrid(root, rerender) {
   if (!state.characters.length) {
     body = h('div.empty',
       h('h2', 'No characters yet'),
-      h('p.muted', 'Create your first one — or just drop or paste (Ctrl+V) an image anywhere on this page.'),
+      h('p.muted', 'Create your first one — or just drop, paste (Ctrl+V) or share an image to this page.'),
       h('button.btn.primary', { onclick: () => openNewCharacter() }, 'Add character'));
   } else if (!list.length) {
     body = h('div.empty',
@@ -96,7 +103,7 @@ function card(c, rerender) {
     else state.compareSel.push(c.id);
     rerender();
   };
-  const tags = c.tags || [];
+  const tags = tagNamesOf(c);
   const tagText = tags.slice(0, 4).join(' · ') + (tags.length > 4 ? ` +${tags.length - 4}` : '');
   const n = c.images.length;
   const countText = `${n} image${n === 1 ? '' : 's'}`;
@@ -107,6 +114,7 @@ function card(c, rerender) {
     h('div.caption',
       h('a.card-link', { href: `#/c/${c.id}`, onclick: onLink, 'aria-pressed': state.compareMode ? String(selIdx >= 0) : null },
         h('h3.card-name', c.name),
+        c.source ? h('p.card-source', c.source) : null,
         h('p.card-meta', tagText ? `${tagText} — ${countText}` : countText)),
       star));
 }
