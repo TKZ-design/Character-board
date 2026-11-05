@@ -33,7 +33,7 @@ export function renderHome(root) {
   root.replaceChildren(
     h('header.page-head.home-head',
       h('div.titleblock',
-        h('p.eyebrow', `Personal hub · ${SECTIONS.length} sections`),
+        h('p.eyebrow', `Stash · ${SECTIONS.length} sections`),
         h('h1.title', nonEmpty ? 'Welcome back' : 'Welcome', h('span.title-dot', '.'))),
       h('div.actions',
         state.linksReady ? pasteLinkButton() : null,
