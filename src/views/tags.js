@@ -1,16 +1,22 @@
 import { h, icon, modal, toast, errorToast, confirmDialog, promptDialog } from '../ui.js';
 import {
-  api, state, tagCounts, groupedTags, sortedGroups, tagByName, groupById, upsertTags, dropTagsLocally,
+  api, state, tagUsage, groupedTags, sortedGroups, tagByName, groupById, upsertTags, dropTagsLocally,
 } from '../state.js';
 import { tagKey } from '../text.js';
 import { rerender } from '../nav.js';
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+/** "2 characters and 1 link" / "no characters or links" */
+function usageText(u) {
+  const parts = [u.chars ? plural(u.chars, 'character') : null, u.links ? plural(u.links, 'link') : null].filter(Boolean);
+  return parts.join(' and ');
+}
+const NONE = { chars: 0, links: 0, total: 0 };
 const isUnique = (e) => e?.code === '23505' || /duplicate key|unique/i.test(e?.message || '');
 
 /** The Tags page: tags with usage counts, organised by group. */
 export function renderTags(root) {
-  const counts = tagCounts();
+  const counts = tagUsage();
   const sections = groupedTags({ keepEmpty: true })
     .filter((s) => s.group || s.tags.length || !state.groups.length);
   const nTags = state.tagList.length, nGroups = state.groups.length;
@@ -26,7 +32,7 @@ export function renderTags(root) {
   const body = !nTags && !nGroups
     ? h('div.empty',
         h('h2', 'No tags yet'),
-        h('p.muted', 'Tags you add to characters show up here. You can also create groups — like Genre, Role or Mood — to keep them organised.'),
+        h('p.muted', 'Tags you add to characters and links show up here. You can also create groups — like Genre, Role or Mood — to keep them organised.'),
         h('div.row', h('button.btn', { onclick: () => newGroup() }, 'New group'), h('button.btn.primary', { onclick: () => newTag() }, 'New tag')))
     : h('div.tag-groups', sections.map((s) => groupSection(s, counts)));
 
@@ -44,12 +50,12 @@ function groupSection({ group, tags }, counts) {
         group ? h('button.btn.small-btn', { onclick: () => renameGroup(group) }, 'Rename') : null,
         group ? h('button.btn.small-btn', { onclick: () => deleteGroup(group, tags.length) }, 'Delete') : null)),
     tags.length
-      ? h('ul.tag-rows', tags.map((t) => tagRow(t, counts.get(t.id) || 0)))
+      ? h('ul.tag-rows', tags.map((t) => tagRow(t, counts.get(t.id) || NONE)))
       : h('p.muted.tag-group-empty', group ? 'No tags in this group yet — use “Move to” on a tag, or “+ Tag”.' : 'No ungrouped tags.'),
   );
 }
 
-function tagRow(t, n) {
+function tagRow(t, u) {
   const select = h('select.group-select', {
     'aria-label': `Group for ${t.name}`,
     onchange: async (e) => {
@@ -65,15 +71,22 @@ function tagRow(t, n) {
     sortedGroups().map((g) => h('option', { value: g.id, selected: g.id === t.group_id }, g.name)));
 
   return h('li.tag-row', { 'data-tag': t.id },
-    h('a.tag-name', {
-      href: '#/', title: `Show characters tagged ${t.name}`,
-      onclick: () => { state.tags.clear(); state.tags.add(t.id); state.search = ''; state.favoritesOnly = false; },
-    }, t.name, h('span.tag-count', ` (${n})`)),
+    h('span.tag-name-wrap',
+      h('a.tag-name', {
+        href: '#/characters', title: `Show characters tagged ${t.name}`,
+        onclick: () => { state.tags.clear(); state.tags.add(t.id); state.search = ''; state.favoritesOnly = false; },
+      }, t.name, h('span.tag-count', ` (${u.chars})`)),
+      u.links
+        ? h('a.tag-links', {
+            href: '#/links', title: `Show links tagged ${t.name}`,
+            onclick: () => { state.vault.tags.clear(); state.vault.tags.add(t.id); state.vault.search = ''; state.vault.favoritesOnly = false; state.vault.status = 'all'; state.vault.platform = null; },
+          }, plural(u.links, 'link'))
+        : null),
     h('div.tag-row-actions',
       h('label.move', h('span.sr-only', 'Move to'), select),
       h('button.icon-btn.small', { title: 'Rename', 'aria-label': `Rename ${t.name}`, onclick: () => renameTag(t) }, icon('edit')),
       h('button.icon-btn.small', { title: 'Merge into another tag', 'aria-label': `Merge ${t.name} into another tag`, onclick: () => mergeTag(t) }, icon('merge')),
-      h('button.icon-btn.small', { title: 'Delete', 'aria-label': `Delete ${t.name}`, onclick: () => deleteTag(t, n) }, icon('trash'))),
+      h('button.icon-btn.small', { title: 'Delete', 'aria-label': `Delete ${t.name}`, onclick: () => deleteTag(t, u) }, icon('trash'))),
   );
 }
 
@@ -107,24 +120,24 @@ async function renameTag(t) {
   const clash = tagByName(name);
   if (clash && clash.id !== t.id) {
     // same name (ignoring case) as another tag → that's really a merge
-    const n = tagCounts().get(t.id) || 0;
+    const u = tagUsage().get(t.id) || NONE;
     const ok = await confirmDialog(`“${clash.name}” already exists`,
-      `Merge “${t.name}” into “${clash.name}” instead? ${n ? `Its ${plural(n, 'character')} will be tagged “${clash.name}”` : 'It isn’t used by any character'}, and “${t.name}” will be removed.`,
+      `Merge “${t.name}” into “${clash.name}” instead? ${u.total ? `Its ${usageText(u)} will be tagged “${clash.name}”` : 'It isn’t used anywhere'}, and “${t.name}” will be removed.`,
       { okText: 'Merge', danger: false });
     if (ok) await doMerge([t], clash);
     return;
   }
   try {
     upsertTags([await api.updateTag(t.id, { name })]);
-    toast('Renamed — every character is updated', { type: 'ok', timeout: 2200 });
+    toast('Renamed — every character and link is updated', { type: 'ok', timeout: 2200 });
     rerender();
   } catch (e) { errorToast(e); }
 }
 
-async function deleteTag(t, n) {
+async function deleteTag(t, u) {
   const ok = await confirmDialog(`Delete “${t.name}”?`,
-    n ? `It will be removed from ${plural(n, 'character')}. The characters themselves stay. This can’t be undone.`
-      : 'No characters use this tag. This can’t be undone.');
+    u.total ? `It will be removed from ${usageText(u)}. They themselves stay. This can’t be undone.`
+      : 'Nothing uses this tag. This can’t be undone.');
   if (!ok) return;
   try {
     await api.deleteTag(t.id);
@@ -136,7 +149,8 @@ async function deleteTag(t, n) {
 
 /** Pick a target tag, then merge `t` into it. */
 function mergeTag(t) {
-  const counts = tagCounts();
+  const usage = tagUsage();
+  const counts = new Map([...usage].map(([id, u]) => [id, u.total]));
   let target = null;
   const search = h('input', { type: 'search', placeholder: 'Find a tag', autocomplete: 'off', 'aria-label': 'Find a tag' });
   const list = h('ul.merge-list', { role: 'listbox', 'aria-label': 'Merge into' });
@@ -156,9 +170,9 @@ function mergeTag(t) {
         h('span.tag-option-group', groupById(x.group_id)?.name || 'Ungrouped'))))
       : [h('li.muted.char-pick-empty', 'No other tags')]));
     ok.disabled = !target;
-    const n = counts.get(t.id) || 0;
+    const u = usage.get(t.id) || NONE;
     summary.textContent = target
-      ? `${n ? `${plural(n, 'character')} tagged “${t.name}” will be tagged “${target.name}” instead` : `“${t.name}” isn’t used by any character`}, and “${t.name}” will be removed.`
+      ? `${u.total ? `The ${usageText(u)} tagged “${t.name}” will be tagged “${target.name}” instead` : `“${t.name}” isn’t used anywhere`}, and “${t.name}” will be removed.`
       : 'Choose the tag to keep.';
   }
   search.addEventListener('input', draw);

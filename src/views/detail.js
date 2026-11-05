@@ -1,5 +1,8 @@
 import { h, icon, errorToast, toast, confirmDialog, prettyUrl, safeHref } from '../ui.js';
-import { api, state, findChar, coverOf, toggleFavorite, tagsOf, tagNamesOf, saveCharacterTags, allSources } from '../state.js';
+import { api, state, findChar, coverOf, toggleFavorite, tagsOf, tagNamesOf, saveCharacterTags, allSources, linksOf } from '../state.js';
+import { linkMedia, linkTitle, loadLinkImages } from '../linkmedia.js';
+import { openAddLink, pasteLinkButton } from './add-link.js';
+import { metaLine } from './vault.js';
 import { pasteButton } from '../paste.js';
 import { tagInput } from './tag-input.js';
 import { openLightbox } from './lightbox.js';
@@ -11,7 +14,7 @@ let editing = null; // id of the character currently in edit mode
 export function renderDetail(root, id) {
   const c = findChar(id);
   if (!c) {
-    root.replaceChildren(h('div.empty', h('h2', 'Character not found'), h('a.btn', { href: '#/' }, 'Back to board')));
+    root.replaceChildren(h('div.empty', h('h2', 'Character not found'), h('a.btn', { href: '#/characters' }, 'Back to board')));
     return;
   }
   const upload = (files) => addImages(c, files, () => rerender());
@@ -37,6 +40,26 @@ export function renderDetail(root, id) {
   const info = editing === c.id ? editForm(c) : infoView(c);
 
   root.replaceChildren(h('article.detail', h('section.detail-gallery', gallery), h('section.detail-info', info)));
+  loadLinkImages(info);
+}
+
+/** Saved links that belong to this character (Link Vault). */
+function linksSection(c) {
+  if (!state.linksReady) return null;
+  const list = linksOf(c);
+  return [
+    h('h4.label', 'Links'),
+    list.length
+      ? h('ul.rows.compact-rows.char-links', list.map((l) => h(`li.row-item${l.status === 'done' ? '.is-done' : ''}`,
+          h('a.row-thumb.link-thumb', { href: `#/l/${l.id}`, tabindex: '-1', 'aria-hidden': 'true' }, linkMedia(l, { compact: true })),
+          h('a.row-text', { href: `#/l/${l.id}` },
+            h('span.row-name', linkTitle(l)),
+            h('span.row-sub', metaLine(l), ' · ', l.status === 'done' ? 'Done' : 'To watch')))))
+      : h('p.muted', 'No saved links for this character yet.'),
+    h('div.row.link-add-row',
+      h('button.btn', { onclick: () => openAddLink({ characterIds: [c.id] }) }, icon('plus'), 'Add link'),
+      pasteLinkButton({ characterIds: [c.id] })),
+  ];
 }
 
 function infoView(c) {
@@ -56,7 +79,7 @@ function infoView(c) {
         h('button.btn', { onclick: () => { editing = c.id; rerender(); } }, 'Edit'),
       )),
     tagsOf(c).length
-      ? h('div.chips.inline', tagsOf(c).map((t) => h('a.chip', { href: '#/', onclick: () => { state.tags.clear(); state.tags.add(t.id); state.search = ''; } }, t.name)))
+      ? h('div.chips.inline', tagsOf(c).map((t) => h('a.chip', { href: '#/characters', onclick: () => { state.tags.clear(); state.tags.add(t.id); state.search = ''; } }, t.name)))
       : null,
     h('h4.label', 'Notes'),
     c.notes?.trim() ? h('div.notes', c.notes) : h('p.muted', 'No notes yet.'),
@@ -64,6 +87,7 @@ function infoView(c) {
     links.length
       ? h('ul.links', links.map(([l, href]) => h('li', h('a', { href, target: '_blank', rel: 'noopener noreferrer' }, icon('link'), prettyUrl(href)))))
       : h('p.muted', 'No source links yet.'),
+    linksSection(c),
     h('div.danger-zone',
       h('button.btn.danger.ghost', { onclick: () => removeCharacter(c) }, 'Delete character')),
   );
@@ -139,8 +163,9 @@ async function removeCharacter(c) {
   try {
     await api.deleteCharacter(c);
     state.characters = state.characters.filter((x) => x.id !== c.id);
+    for (const l of state.links) l.character_ids = (l.character_ids || []).filter((id) => id !== c.id);
     toast(`Deleted ${c.name}`, { type: 'ok' });
-    go('#/');
+    go('#/characters');
   } catch (e) { errorToast(e); }
 }
 

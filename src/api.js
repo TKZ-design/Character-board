@@ -23,6 +23,14 @@ function sortImages(c) {
   return c;
 }
 
+function linkRow(l) {
+  l.tag_ids = (l.link_tags || []).map((x) => x.tag_id);
+  l.character_ids = (l.link_characters || []).map((x) => x.character_id);
+  delete l.link_tags;
+  delete l.link_characters;
+  return l;
+}
+
 export const realApi = {
   // ---------- auth ----------
   async getUser() {
@@ -133,6 +141,61 @@ export const realApi = {
   },
   async deleteGroup(id) {
     check(await supabase.from('tag_groups').delete().eq('id', id));
+  },
+
+  // ---------- links (Link Vault) ----------
+  async listLinks() {
+    const rows = check(
+      await supabase.from('links')
+        .select('*, link_tags(tag_id), link_characters(character_id)')
+        .order('created_at', { ascending: false }),
+    );
+    return rows.map(linkRow);
+  },
+  async createLink(fields) {
+    return linkRow(check(await supabase.from('links').insert(fields).select().single()));
+  },
+  async updateLink(id, patch) {
+    return check(await supabase.from('links').update(patch).eq('id', id).select().single());
+  },
+  async deleteLink(link) {
+    const paths = [link.image_path, link.image_thumb_path].filter(Boolean);
+    check(await supabase.from('links').delete().eq('id', link.id));
+    if (paths.length) await supabase.storage.from(BUCKET).remove(paths);
+  },
+  async setLinkTags(linkId, names) {
+    return check(await supabase.rpc('set_link_tags', { p_link_id: linkId, p_names: names }));
+  },
+  async setLinkCharacters(linkId, characterIds) {
+    const rows = check(await supabase.rpc('set_link_characters', { p_link_id: linkId, p_character_ids: characterIds }));
+    return (rows || []).map((r) => (typeof r === 'string' ? r : r.set_link_characters ?? r.character_id));
+  },
+  /**
+   * Ask the link-preview Edge Function for a link's Open Graph data. It stores the
+   * result on the link and returns the updated row (or the stored one if it was fetched before).
+   */
+  async fetchPreview(linkId, { force = false } = {}) {
+    const { data, error } = await supabase.functions.invoke('link-preview', { body: { link_id: linkId, force } });
+    if (error) {
+      const status = error.context?.status;
+      throw Object.assign(new Error(error.message || 'Preview failed'), { status, notDeployed: status === 404 || error.name === 'FunctionsFetchError' });
+    }
+    return data?.link || null;
+  },
+  /** Upload a custom link thumbnail (already compressed) — same private bucket, under <user>/links/<link>/. */
+  async uploadLinkImage(userId, linkId, img) {
+    const base = `${userId}/links/${linkId}/${crypto.randomUUID()}`;
+    const image_path = `${base}.${img.ext}`;
+    const image_thumb_path = `${base}_thumb.${img.ext}`;
+    const store = supabase.storage.from(BUCKET);
+    const opts = { contentType: img.full.type, cacheControl: '31536000', upsert: false };
+    check(await store.upload(image_path, img.full, opts));
+    check(await store.upload(image_thumb_path, img.thumb, { ...opts, contentType: img.thumb.type }));
+    return { image_path, image_thumb_path, image_width: img.width, image_height: img.height };
+  },
+  async removeFiles(paths) {
+    const list = paths.filter(Boolean);
+    if (list.length) await supabase.storage.from(BUCKET).remove(list);
   },
 
   /** Returns { path: signedUrl } for the given storage paths (cached). */
