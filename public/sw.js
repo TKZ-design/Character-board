@@ -1,6 +1,6 @@
 // Service worker: makes the app installable and lets the app shell load
 // offline/instantly. Your private data (Supabase) is never cached here.
-const CACHE = 'cb-shell-v2';
+const CACHE = 'cb-shell-v3';
 const SHARE_CACHE = 'cb-share'; // images shared from other apps (Android), picked up by src/share.js
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png'];
 
@@ -18,11 +18,18 @@ self.addEventListener('activate', (e) => {
 
 // Web Share Target (see manifest "share_target"): Android's Share sheet POSTs
 // the images here. Keep them, then open the app, which asks what to do with them.
+// A shared link (YouTube, X, …) goes to the Link Vault instead.
 async function receiveShare(req) {
   const done = (q) => Response.redirect(new URL(`./?${q}`, self.registration.scope).href, 303);
   try {
     const form = await req.formData();
     const files = form.getAll('images').filter((f) => f && typeof f === 'object' && f.size > 0);
+    // Sharing a link (no images) → open the app's "Add link" dialog
+    if (!files.length) {
+      const text = [form.get('url'), form.get('text'), form.get('title')].filter((v) => typeof v === 'string' && v.trim()).join(' ');
+      const link = (text.match(/https?:\/\/[^\s<>"']+/i) || [])[0];
+      if (link) return done(`add=${encodeURIComponent(link)}`);
+    }
     const cache = await caches.open(SHARE_CACHE);
     for (const old of await cache.keys()) await cache.delete(old); // only the latest share
     const stamp = Date.now();

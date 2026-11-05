@@ -1,6 +1,7 @@
 // DEVELOPMENT ONLY: an in-memory fake backend, enabled with `?mock` on the
 // dev server. Never included in the production build.
 import { cleanTag, tagKey } from './text.js';
+import { platformOf, domainOf } from './links.js';
 
 const delay = (ms = 60) => new Promise((r) => setTimeout(r, ms));
 const now = () => new Date().toISOString();
@@ -10,6 +11,9 @@ let chars = [];
 let tags = [];      // { id, name, group_id }
 let groups = [];    // { id, name }
 let links = [];     // { character_id, tag_id }
+let vault = [];     // Link Vault rows
+let vaultTags = []; // { link_id, tag_id }
+let vaultChars = [];// { link_id, character_id }
 
 function swatch(color, w, h, label) {
   const c = document.createElement('canvas');
@@ -56,6 +60,27 @@ async function seed() {
       cover_image_id: null, is_favorite: false, created_at: now(), updated_at: now(), images: imgs });
     for (const n of tagNames) links.push({ character_id: id, tag_id: ensureTag(n).id });
   }
+  const charId = (n) => chars.find((c) => c.name === n)?.id;
+  const reddit = URL.createObjectURL(await swatch('#9a3412', 640, 400, 'Courier'));
+  const art = URL.createObjectURL(await swatch('#1e293b', 640, 360, 'Palette'));
+  const demoLinks = [
+    ['https://www.youtube.com/watch?v=dQw4w9WgXcQ&si=abc', 'Character turnaround sheet — full tutorial', 'todo', ['Tutorial'], ['Captain Vex'], null, false],
+    ['https://youtube.com/shorts/aqz-KE-bpKQ', '60-second armor sketch', 'done', ['Tutorial', 'Sci-fi'], [], null, false],
+    ['https://x.com/someartist/status/1790000000000000001', 'Witch silhouette thread', 'todo', ['Fantasy'], ['Moss Witch'], null, true],
+    ['https://www.instagram.com/reel/C7abcDEF12/', 'Cloak animation reference', 'todo', ['Fantasy', 'Animation'], ['Moss Witch'], null, false],
+    ['https://www.reddit.com/r/ImaginaryCharacters/comments/1abc2d/the_courier_by_me/', 'The Courier (OC)', 'done', ['cozy'], ['Pip the Courier'], reddit, false],
+    ['https://www.artstation.com/artwork/noir-palette', 'Noir detective palette study', 'todo', ['Noir'], ['Detective Oona'], art, true],
+  ];
+  demoLinks.forEach(([url, title, status, tagNames, charNames, thumb, fav], i) => {
+    const id = crypto.randomUUID();
+    const t = new Date(Date.now() - (i + 1) * 3600e3).toISOString();
+    vault.push({ id, user_id: user.id, url, title, description: thumb ? 'A lovely reference I want to come back to.' : '',
+      site_name: thumb ? domainOf(url) : '', platform: platformOf(url), thumbnail_url: thumb, cover_path: null, cover_thumb_path: null,
+      cover_width: null, cover_height: null, notes: i === 0 ? 'Watch the part about silhouettes.' : '', status, is_favorite: fav,
+      preview_status: thumb ? 'ok' : 'none', preview_fetched_at: t, created_at: t, updated_at: t });
+    for (const n of tagNames) vaultTags.push({ link_id: id, tag_id: ensureTag(n).id });
+    for (const n of charNames) vaultChars.push({ link_id: id, character_id: charId(n) });
+  });
   for (const t of tags) {
     if (['Sci-fi', 'Fantasy', 'Noir'].includes(t.name)) t.group_id = genre.id;
     if (['Villain', 'Hero', 'Sidekick'].includes(t.name)) t.group_id = role.id;
@@ -81,6 +106,7 @@ export const mockApi = {
   },
   async deleteCharacter(ch) {
     chars = chars.filter((c) => c.id !== ch.id);
+    vaultChars = vaultChars.filter((x) => x.character_id !== ch.id);
     links = links.filter((l) => l.character_id !== ch.id);
   },
   async uploadImage(_u, characterId, img, position) {
@@ -127,6 +153,7 @@ export const mockApi = {
     await delay();
     tags = tags.filter((t) => t.id !== id);
     links = links.filter((l) => l.tag_id !== id);
+    vaultTags = vaultTags.filter((l) => l.tag_id !== id);
   },
   async mergeTags(sourceIds, targetId) {
     await delay();
@@ -135,6 +162,10 @@ export const mockApi = {
       if (!links.some((x) => x.character_id === l.character_id && x.tag_id === targetId)) links.push({ character_id: l.character_id, tag_id: targetId });
     }
     links = links.filter((l) => !src.has(l.tag_id));
+    for (const l of vaultTags.filter((x) => src.has(x.tag_id))) {
+      if (!vaultTags.some((x) => x.link_id === l.link_id && x.tag_id === targetId)) vaultTags.push({ link_id: l.link_id, tag_id: targetId });
+    }
+    vaultTags = vaultTags.filter((l) => !src.has(l.tag_id));
     tags = tags.filter((t) => !src.has(t.id));
   },
   async createGroup(name) {
@@ -154,6 +185,55 @@ export const mockApi = {
     await delay();
     groups = groups.filter((g) => g.id !== id);
     for (const t of tags) if (t.group_id === id) t.group_id = null;
+  },
+
+  // ---------- Link Vault ----------
+  async listLinks() {
+    await delay();
+    return vault.map((l) => ({ ...structuredClone(l), tag_ids: vaultTags.filter((x) => x.link_id === l.id).map((x) => x.tag_id),
+      character_ids: vaultChars.filter((x) => x.link_id === l.id).map((x) => x.character_id) }));
+  },
+  async createLink(f) {
+    await delay();
+    const l = { id: crypto.randomUUID(), user_id: user.id, title: '', description: '', site_name: '', platform: 'web', thumbnail_url: null,
+      cover_path: null, cover_thumb_path: null, cover_width: null, cover_height: null, notes: '', status: 'todo', is_favorite: false,
+      preview_status: 'pending', preview_fetched_at: null, ...f, created_at: now(), updated_at: now() };
+    vault.unshift(l);
+    return { ...structuredClone(l), tag_ids: [], character_ids: [] };
+  },
+  async updateLink(id, patch) {
+    await delay();
+    const l = vault.find((x) => x.id === id); Object.assign(l, patch, { updated_at: now() }); return structuredClone(l);
+  },
+  async deleteLink(link) {
+    vault = vault.filter((l) => l.id !== link.id);
+    vaultTags = vaultTags.filter((x) => x.link_id !== link.id);
+    vaultChars = vaultChars.filter((x) => x.link_id !== link.id);
+  },
+  async setLinkTags(linkId, names) {
+    await delay();
+    const ids = [...new Set(names.map(ensureTag).filter(Boolean).map((t) => t.id))];
+    vaultTags = vaultTags.filter((x) => x.link_id !== linkId).concat(ids.map((tag_id) => ({ link_id: linkId, tag_id })));
+    return structuredClone(tags.filter((t) => ids.includes(t.id)));
+  },
+  async setLinkCharacters(linkId, ids) {
+    await delay();
+    vaultChars = vaultChars.filter((x) => x.link_id !== linkId).concat(ids.map((character_id) => ({ link_id: linkId, character_id })));
+  },
+  async uploadLinkCover(_u, linkId, img) {
+    await delay(150);
+    const base = `${user.id}/links/${linkId}/${crypto.randomUUID()}`;
+    blobs.set(`${base}.${img.ext}`, img.full); blobs.set(`${base}_thumb.${img.ext}`, img.thumb);
+    return { cover_path: `${base}.${img.ext}`, cover_thumb_path: `${base}_thumb.${img.ext}`, cover_width: img.width, cover_height: img.height };
+  },
+  async removeFiles(paths) { for (const p of paths) blobs.delete(p); },
+  async fetchPreview(url) {
+    await delay(500);
+    const p = platformOf(url);
+    if (p === 'x' || p === 'instagram') return { ok: true, url, title: '', description: '', image: null, site_name: '' };
+    if (p === 'youtube') return { ok: true, url, title: 'A YouTube video (mock title)', description: '', image: null, site_name: 'YouTube' };
+    return { ok: true, url, title: `Preview of ${domainOf(url)}`, description: 'Mock Open Graph description.',
+      image: URL.createObjectURL(await swatch('#4d7c0f', 640, 360, domainOf(url).split('.')[0])), site_name: domainOf(url) };
   },
 
   async getUrls(paths) {

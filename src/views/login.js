@@ -1,7 +1,9 @@
 import { h, icon, errorToast, toast } from '../ui.js';
 import { api } from '../state.js';
 
-export function renderLogin(root) {
+import { domainOf } from '../links.js';
+
+export function renderLogin(root, { pendingUrl = null } = {}) {
   let email = '';
   const emailInput = h('input', { type: 'email', required: true, placeholder: 'you@example.com', autocomplete: 'email', 'aria-label': 'Email' });
   const sendBtn = h('button.btn.primary.wide', { type: 'submit' }, 'Email me a login link');
@@ -42,7 +44,8 @@ export function renderLogin(root) {
       h('div.login-card',
         h('p.eyebrow', 'Private collection'),
         h('h1.title', 'Characters', h('span.title-dot', '.')),
-        h('p.muted', 'Your private collection of character references. Sign in with your email to continue.'),
+        h('p.muted', 'Your private hub for character references and saved links. Sign in with your email to continue.'),
+        pendingUrl ? h('p.notice', { role: 'status' }, 'Log in to save ', h('strong', domainOf(pendingUrl) || 'your link'), ' to your Link Vault — it’ll be waiting for you.') : null,
         step1, step2,
       ),
     ),

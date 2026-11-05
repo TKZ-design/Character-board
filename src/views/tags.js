@@ -1,11 +1,16 @@
 import { h, icon, modal, toast, errorToast, confirmDialog, promptDialog } from '../ui.js';
 import {
-  api, state, tagCounts, groupedTags, sortedGroups, tagByName, groupById, upsertTags, dropTagsLocally,
+  api, state, tagCounts, linkTagCounts, tagUseCounts, groupedTags, sortedGroups, tagByName, groupById, upsertTags, dropTagsLocally, clearLinkFilters,
 } from '../state.js';
 import { tagKey } from '../text.js';
 import { rerender } from '../nav.js';
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+/** "3 characters", "2 links" or "3 characters and 2 links" */
+function usage(t) {
+  const c = tagCounts().get(t.id) || 0, l = linkTagCounts().get(t.id) || 0;
+  return [c ? plural(c, 'character') : null, l ? plural(l, 'link') : null].filter(Boolean).join(' and ');
+}
 const isUnique = (e) => e?.code === '23505' || /duplicate key|unique/i.test(e?.message || '');
 
 /** The Tags page: tags with usage counts, organised by group. */
@@ -26,7 +31,7 @@ export function renderTags(root) {
   const body = !nTags && !nGroups
     ? h('div.empty',
         h('h2', 'No tags yet'),
-        h('p.muted', 'Tags you add to characters show up here. You can also create groups — like Genre, Role or Mood — to keep them organised.'),
+        h('p.muted', 'Tags you add to characters and links show up here. You can also create groups — like Genre, Role or Mood — to keep them organised.'),
         h('div.row', h('button.btn', { onclick: () => newGroup() }, 'New group'), h('button.btn.primary', { onclick: () => newTag() }, 'New tag')))
     : h('div.tag-groups', sections.map((s) => groupSection(s, counts)));
 
@@ -50,6 +55,7 @@ function groupSection({ group, tags }, counts) {
 }
 
 function tagRow(t, n) {
+  const nLinks = linkTagCounts().get(t.id) || 0;
   const select = h('select.group-select', {
     'aria-label': `Group for ${t.name}`,
     onchange: async (e) => {
@@ -64,16 +70,21 @@ function tagRow(t, n) {
     h('option', { value: '', selected: !t.group_id }, 'Ungrouped'),
     sortedGroups().map((g) => h('option', { value: g.id, selected: g.id === t.group_id }, g.name)));
 
+  const showLinks = () => { clearLinkFilters(); state.linkFilter.tags.add(t.id); };
   return h('li.tag-row', { 'data-tag': t.id },
-    h('a.tag-name', {
-      href: '#/', title: `Show characters tagged ${t.name}`,
-      onclick: () => { state.tags.clear(); state.tags.add(t.id); state.search = ''; state.favoritesOnly = false; },
-    }, t.name, h('span.tag-count', ` (${n})`)),
+    h('span.tag-name-wrap',
+      !n && nLinks
+        ? h('a.tag-name', { href: '#/links', title: `Show links tagged ${t.name}`, onclick: showLinks }, t.name, h('span.tag-count', ` (${n})`))
+        : h('a.tag-name', {
+            href: '#/characters', title: `Show characters tagged ${t.name}`,
+            onclick: () => { state.tags.clear(); state.tags.add(t.id); state.search = ''; state.favoritesOnly = false; },
+          }, t.name, h('span.tag-count', ` (${n})`)),
+      nLinks ? h('a.tag-links', { href: '#/links', title: `Show links tagged ${t.name}`, onclick: showLinks }, plural(nLinks, 'link')) : null),
     h('div.tag-row-actions',
       h('label.move', h('span.sr-only', 'Move to'), select),
       h('button.icon-btn.small', { title: 'Rename', 'aria-label': `Rename ${t.name}`, onclick: () => renameTag(t) }, icon('edit')),
       h('button.icon-btn.small', { title: 'Merge into another tag', 'aria-label': `Merge ${t.name} into another tag`, onclick: () => mergeTag(t) }, icon('merge')),
-      h('button.icon-btn.small', { title: 'Delete', 'aria-label': `Delete ${t.name}`, onclick: () => deleteTag(t, n) }, icon('trash'))),
+      h('button.icon-btn.small', { title: 'Delete', 'aria-label': `Delete ${t.name}`, onclick: () => deleteTag(t) }, icon('trash'))),
   );
 }
 
@@ -107,9 +118,9 @@ async function renameTag(t) {
   const clash = tagByName(name);
   if (clash && clash.id !== t.id) {
     // same name (ignoring case) as another tag → that's really a merge
-    const n = tagCounts().get(t.id) || 0;
+    const used = usage(t);
     const ok = await confirmDialog(`“${clash.name}” already exists`,
-      `Merge “${t.name}” into “${clash.name}” instead? ${n ? `Its ${plural(n, 'character')} will be tagged “${clash.name}”` : 'It isn’t used by any character'}, and “${t.name}” will be removed.`,
+      `Merge “${t.name}” into “${clash.name}” instead? ${used ? `Its ${used} will be tagged “${clash.name}”` : 'Nothing uses it'}, and “${t.name}” will be removed.`,
       { okText: 'Merge', danger: false });
     if (ok) await doMerge([t], clash);
     return;
@@ -121,10 +132,11 @@ async function renameTag(t) {
   } catch (e) { errorToast(e); }
 }
 
-async function deleteTag(t, n) {
+async function deleteTag(t) {
+  const used = usage(t);
   const ok = await confirmDialog(`Delete “${t.name}”?`,
-    n ? `It will be removed from ${plural(n, 'character')}. The characters themselves stay. This can’t be undone.`
-      : 'No characters use this tag. This can’t be undone.');
+    used ? `It will be removed from ${used}. They themselves stay. This can’t be undone.`
+      : 'Nothing uses this tag. This can’t be undone.');
   if (!ok) return;
   try {
     await api.deleteTag(t.id);
@@ -136,7 +148,7 @@ async function deleteTag(t, n) {
 
 /** Pick a target tag, then merge `t` into it. */
 function mergeTag(t) {
-  const counts = tagCounts();
+  const counts = tagUseCounts();
   let target = null;
   const search = h('input', { type: 'search', placeholder: 'Find a tag', autocomplete: 'off', 'aria-label': 'Find a tag' });
   const list = h('ul.merge-list', { role: 'listbox', 'aria-label': 'Merge into' });
@@ -156,9 +168,9 @@ function mergeTag(t) {
         h('span.tag-option-group', groupById(x.group_id)?.name || 'Ungrouped'))))
       : [h('li.muted.char-pick-empty', 'No other tags')]));
     ok.disabled = !target;
-    const n = counts.get(t.id) || 0;
+    const used = usage(t);
     summary.textContent = target
-      ? `${n ? `${plural(n, 'character')} tagged “${t.name}” will be tagged “${target.name}” instead` : `“${t.name}” isn’t used by any character`}, and “${t.name}” will be removed.`
+      ? `${used ? `The ${used} tagged “${t.name}” will be tagged “${target.name}” instead` : `Nothing uses “${t.name}”`}, and “${t.name}” will be removed.`
       : 'Choose the tag to keep.';
   }
   search.addEventListener('input', draw);
