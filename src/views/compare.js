@@ -6,7 +6,7 @@ import { rerender } from '../nav.js';
 export function renderCompare(root, arg) {
   const chars = arg.split(',').map(findChar).filter(Boolean).slice(0, 3);
   if (chars.length < 2) {
-    root.replaceChildren(h('div.empty', h('h2', 'Pick at least two characters to compare'), h('a.btn', { href: '#/' }, 'Back to board')));
+    root.replaceChildren(h('div.empty', h('h2', 'Pick at least two characters to compare'), h('a.btn', { href: '#/characters' }, 'Back to board')));
     return;
   }
   const cols = chars.map((c) => {

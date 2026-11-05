@@ -2,6 +2,9 @@ import { h, icon, errorToast, toast } from '../ui.js';
 import { go } from '../nav.js';
 import { api, state, filtered, hasFilters, coverOf, toggleFavorite, groupedTags, tagCounts, tagNamesOf } from '../state.js';
 import { openNewCharacter } from './new-character.js';
+import { viewTools } from './view-tools.js';
+
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
 /** Tag / favorites filters + search, shown under the title on the board. */
 export function filterBar(searchInput, rerender) {
@@ -62,19 +65,27 @@ export function renderGrid(root, rerender) {
       h('h2', 'No matches'),
       h('p.muted', 'Nothing fits the current search and filters.'),
       h('button.btn', { onclick: () => { state.search = ''; state.tags.clear(); state.favoritesOnly = false; document.querySelector('#search')?.value && (document.querySelector('#search').value = ''); rerender(); } }, 'Clear filters'));
+  } else if (state.charView === 'list') {
+    body = h('ul.rows.char-rows', list.map((c) => card(c, rerender, true)));
+    loadThumbs(body, list);
   } else {
     body = h('div.masonry', list.map((c) => card(c, rerender)));
     loadThumbs(body, list);
   }
 
-  root.replaceChildren(...[
-    hasFilters() && list.length ? h('p.result-count', `${list.length} of ${state.characters.length} characters`) : null,
-    body,
-    compareBar,
-  ].filter(Boolean));
+  const tools = state.characters.length
+    ? viewTools({
+        count: hasFilters() ? `${list.length} of ${plural(state.characters.length, 'character')}` : plural(state.characters.length, 'character'),
+        key: 'char', view: state.charView, sort: state.charSort,
+        onChange: ({ view, sort }) => { if (view) state.charView = view; if (sort) state.charSort = sort; rerender(); },
+      })
+    : null;
+
+  root.replaceChildren(...[tools, body, compareBar].filter(Boolean));
 }
 
-function card(c, rerender) {
+/** A character on the board: a masonry card, or (asList) a compact row. */
+function card(c, rerender, asList = false) {
   const cover = coverOf(c);
   const media = cover
     ? h('div.card-media', { style: `aspect-ratio:${cover.width || 3}/${cover.height || 4}` },
@@ -107,6 +118,17 @@ function card(c, rerender) {
   const tagText = tags.slice(0, 4).join(' · ') + (tags.length > 4 ? ` +${tags.length - 4}` : '');
   const n = c.images.length;
   const countText = `${n} image${n === 1 ? '' : 's'}`;
+  if (asList) {
+    return h(`li.row-item.char-row${state.compareMode ? '.selectable' : ''}${selIdx >= 0 ? '.selected' : ''}`, { 'data-id': c.id },
+      state.compareMode ? h('span.sel-badge', { 'aria-hidden': 'true' }, selIdx >= 0 ? String(selIdx + 1) : '') : null,
+      h('a.row-thumb', { href: `#/c/${c.id}`, onclick: onLink, tabindex: '-1', 'aria-hidden': 'true' },
+        cover ? h('img', { alt: '', loading: 'lazy', decoding: 'async', 'data-path': cover.thumb_path || cover.path }) : null),
+      h('a.row-text', { href: `#/c/${c.id}`, onclick: onLink, 'aria-pressed': state.compareMode ? String(selIdx >= 0) : null },
+        h('span.row-name', c.name),
+        c.source ? h('span.row-sub', c.source) : null,
+        h('span.row-tags', tags.length ? [tagText, h('span.row-count', ` — ${countText}`)] : countText)),
+      star);
+  }
   return h(`div.card${state.compareMode ? '.selectable' : ''}${selIdx >= 0 ? '.selected' : ''}`, { 'data-id': c.id },
     state.compareMode ? h('span.sel-badge', { 'aria-hidden': 'true' }, selIdx >= 0 ? String(selIdx + 1) : '') : null,
     // the image is a second, mouse-only way into the same link (keyboard/screen readers use the name)

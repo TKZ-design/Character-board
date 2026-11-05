@@ -1,6 +1,6 @@
 // Service worker: makes the app installable and lets the app shell load
 // offline/instantly. Your private data (Supabase) is never cached here.
-const CACHE = 'cb-shell-v2';
+const CACHE = 'cb-shell-v3';
 const SHARE_CACHE = 'cb-share'; // images shared from other apps (Android), picked up by src/share.js
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png'];
 
@@ -18,6 +18,7 @@ self.addEventListener('activate', (e) => {
 
 // Web Share Target (see manifest "share_target"): Android's Share sheet POSTs
 // the images here. Keep them, then open the app, which asks what to do with them.
+// A shared link (no image) opens the app with ?add=<link> for the Link Vault.
 async function receiveShare(req) {
   const done = (q) => Response.redirect(new URL(`./?${q}`, self.registration.scope).href, 303);
   try {
@@ -30,6 +31,11 @@ async function receiveShare(req) {
       new URL(`./__shared/${stamp}-${i}`, self.registration.scope).href,
       new Response(f, { headers: { 'content-type': f.type || 'application/octet-stream', 'x-file-name': encodeURIComponent(f.name || `shared-${i + 1}`) } }),
     )));
+    if (!files.length) {
+      // no image, but a link (e.g. Share → Characters from YouTube): open the Link Vault's "Add link"
+      const text = [form.get('url'), form.get('text'), form.get('title')].map((v) => (typeof v === 'string' ? v.trim() : '')).find((v) => /https?:\/\//i.test(v));
+      if (text) return done(`add=${encodeURIComponent(text)}`);
+    }
     return done(files.length ? 'shared=1' : 'shared=0');
   } catch (err) {
     console.error(err);

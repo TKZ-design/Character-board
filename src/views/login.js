@@ -1,7 +1,7 @@
 import { h, icon, errorToast, toast } from '../ui.js';
 import { api } from '../state.js';
 
-export function renderLogin(root) {
+export function renderLogin(root, { pendingLink = false } = {}) {
   let email = '';
   const emailInput = h('input', { type: 'email', required: true, placeholder: 'you@example.com', autocomplete: 'email', 'aria-label': 'Email' });
   const sendBtn = h('button.btn.primary.wide', { type: 'submit' }, 'Email me a login link');
@@ -40,9 +40,10 @@ export function renderLogin(root) {
   root.replaceChildren(
     h('main.login',
       h('div.login-card',
-        h('p.eyebrow', 'Private collection'),
+        h('p.eyebrow', 'Private hub'),
         h('h1.title', 'Characters', h('span.title-dot', '.')),
-        h('p.muted', 'Your private collection of character references. Sign in with your email to continue.'),
+        h('p.muted', 'Your private hub for character references and saved links. Sign in with your email to continue.'),
+        pendingLink ? h('p.notice', { role: 'status' }, 'Log in and your link will be ready to save in the Link Vault.') : null,
         step1, step2,
       ),
     ),

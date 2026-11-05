@@ -10,6 +10,9 @@ let chars = [];
 let tags = [];      // { id, name, group_id }
 let groups = [];    // { id, name }
 let links = [];     // { character_id, tag_id }
+let vault = [];     // saved links (Link Vault)
+let linkTags = [];  // { link_id, tag_id }
+let linkChars = []; // { link_id, character_id }
 
 function swatch(color, w, h, label) {
   const c = document.createElement('canvas');
@@ -32,6 +35,11 @@ function ensureTag(name) {
   return t;
 }
 const tagIdsOf = (cid) => links.filter((l) => l.character_id === cid).map((l) => l.tag_id);
+const withLinkRefs = (l) => ({
+  ...structuredClone(l),
+  tag_ids: linkTags.filter((x) => x.link_id === l.id).map((x) => x.tag_id),
+  character_ids: linkChars.filter((x) => x.link_id === l.id).map((x) => x.character_id),
+});
 const withTags = (c) => ({ ...structuredClone(c), tag_ids: tagIdsOf(c.id) });
 
 async function seed() {
@@ -56,6 +64,24 @@ async function seed() {
       cover_image_id: null, is_favorite: false, created_at: now(), updated_at: now(), images: imgs });
     for (const n of tagNames) links.push({ character_id: id, tag_id: ensureTag(n).id });
   }
+  const later = (min) => new Date(Date.now() - min * 60000).toISOString();
+  const demoLinks = [
+    // [url, url_key, platform, title, status, fav, tags, characters, thumbnail_url, preview_status]
+    ['https://www.youtube.com/watch?v=aqz-KE-bpKQ', 'youtube:aqz-KE-bpKQ', 'youtube', 'Big Buck Bunny — character animation reference', 'todo', true, ['Fantasy', 'Reference'], [1], null, 'ok'],
+    ['https://youtube.com/shorts/dQw4w9WgXcQ', 'youtube:dQw4w9WgXcQ', 'youtube', 'Quick pose study', 'done', false, ['Reference'], [], null, 'ok'],
+    ['https://x.com/artist/status/1790000000000000000', 'x:1790000000000000000', 'x', 'Moody palette thread', 'todo', false, ['Noir'], [2], null, 'none'],
+    ['https://www.instagram.com/reel/C1a2B3c4D5e/', 'instagram:C1a2B3c4D5e', 'instagram', 'Costume turnaround', 'todo', false, ['Fantasy'], [1, 3], null, 'none'],
+    ['https://www.reddit.com/r/characterdrawing/comments/1abcde/witch_concepts/', 'reddit:1abcde', 'reddit', 'Witch concepts — feedback thread', 'done', true, [], [1], null, 'none'],
+    ['https://example.com/articles/silhouettes', 'example.com/articles/silhouettes', 'web', '', 'todo', false, ['Reference'], [], null, null],
+  ];
+  demoLinks.forEach(([url, url_key, platform, title, status, fav, tagNames, charIdx, thumb, ps], i) => {
+    const id = crypto.randomUUID();
+    vault.push({ id, user_id: user.id, url, url_key, platform, title, description: '', site_name: '', notes: i === 0 ? 'Watch the squash & stretch around 2:10.' : '',
+      status, is_favorite: fav, thumbnail_url: thumb, image_path: null, image_thumb_path: null, image_width: null, image_height: null,
+      preview_status: ps, preview_fetched_at: ps ? now() : null, created_at: later(i * 90), updated_at: later(i * 60) });
+    for (const n of tagNames) linkTags.push({ link_id: id, tag_id: ensureTag(n).id });
+    for (const ci of charIdx) linkChars.push({ link_id: id, character_id: chars[ci].id });
+  });
   for (const t of tags) {
     if (['Sci-fi', 'Fantasy', 'Noir'].includes(t.name)) t.group_id = genre.id;
     if (['Villain', 'Hero', 'Sidekick'].includes(t.name)) t.group_id = role.id;
@@ -82,6 +108,7 @@ export const mockApi = {
   async deleteCharacter(ch) {
     chars = chars.filter((c) => c.id !== ch.id);
     links = links.filter((l) => l.character_id !== ch.id);
+    linkChars = linkChars.filter((l) => l.character_id !== ch.id);
   },
   async uploadImage(_u, characterId, img, position) {
     await delay(150);
@@ -127,6 +154,7 @@ export const mockApi = {
     await delay();
     tags = tags.filter((t) => t.id !== id);
     links = links.filter((l) => l.tag_id !== id);
+    linkTags = linkTags.filter((l) => l.tag_id !== id);
   },
   async mergeTags(sourceIds, targetId) {
     await delay();
@@ -135,6 +163,10 @@ export const mockApi = {
       if (!links.some((x) => x.character_id === l.character_id && x.tag_id === targetId)) links.push({ character_id: l.character_id, tag_id: targetId });
     }
     links = links.filter((l) => !src.has(l.tag_id));
+    for (const l of linkTags.filter((x) => src.has(x.tag_id))) {
+      if (!linkTags.some((x) => x.link_id === l.link_id && x.tag_id === targetId)) linkTags.push({ link_id: l.link_id, tag_id: targetId });
+    }
+    linkTags = linkTags.filter((l) => !src.has(l.tag_id));
     tags = tags.filter((t) => !src.has(t.id));
   },
   async createGroup(name) {
@@ -155,6 +187,61 @@ export const mockApi = {
     groups = groups.filter((g) => g.id !== id);
     for (const t of tags) if (t.group_id === id) t.group_id = null;
   },
+
+  // ---------- links ----------
+  async listLinks() { await delay(); return vault.map(withLinkRefs); },
+  async createLink(f) {
+    await delay();
+    const l = { id: crypto.randomUUID(), user_id: user.id, title: '', description: '', site_name: '', notes: '', status: 'todo',
+      is_favorite: false, thumbnail_url: null, image_path: null, image_thumb_path: null, image_width: null, image_height: null,
+      preview_status: null, preview_fetched_at: null, platform: 'web', url_key: '', ...f, created_at: now(), updated_at: now() };
+    vault.unshift(l); return withLinkRefs(l);
+  },
+  async updateLink(id, patch) {
+    await delay();
+    const l = vault.find((x) => x.id === id); Object.assign(l, patch, { updated_at: now() }); return structuredClone(l);
+  },
+  async deleteLink(link) {
+    await delay();
+    vault = vault.filter((l) => l.id !== link.id);
+    linkTags = linkTags.filter((x) => x.link_id !== link.id);
+    linkChars = linkChars.filter((x) => x.link_id !== link.id);
+  },
+  async setLinkTags(linkId, names) {
+    await delay();
+    const ids = [...new Set(names.map(ensureTag).filter(Boolean).map((t) => t.id))];
+    linkTags = linkTags.filter((l) => l.link_id !== linkId).concat(ids.map((tag_id) => ({ link_id: linkId, tag_id })));
+    return structuredClone(tags.filter((t) => ids.includes(t.id)));
+  },
+  async setLinkCharacters(linkId, ids) {
+    await delay();
+    const ok = ids.filter((id) => chars.some((c) => c.id === id));
+    linkChars = linkChars.filter((l) => l.link_id !== linkId).concat(ok.map((character_id) => ({ link_id: linkId, character_id })));
+    return ok;
+  },
+  async fetchPreview(linkId) {
+    await delay(400);
+    const l = vault.find((x) => x.id === linkId);
+    if (!l) return null;
+    // pretend: ordinary websites have Open Graph data, X / Instagram don't
+    if (l.platform === 'web') {
+      Object.assign(l, { preview_status: 'ok', title: l.title || 'Designing readable silhouettes', site_name: l.site_name || 'Example Journal',
+        description: l.description || 'Why a character should read at thumbnail size.', thumbnail_url: null });
+      const key = `${user.id}/links/${l.id}/og.png`;
+      blobs.set(key, await swatch('#9a3412', 1200, 630, 'OG image'));
+      Object.assign(l, { image_path: null, thumbnail_url: (blobs.get(key).__url ||= URL.createObjectURL(blobs.get(key))) });
+    } else l.preview_status = 'none';
+    l.preview_fetched_at = now();
+    return structuredClone(l);
+  },
+  async uploadLinkImage(_u, linkId, img) {
+    await delay(150);
+    const base = `${user.id}/links/${linkId}/${crypto.randomUUID()}`;
+    const image_path = `${base}.${img.ext}`, image_thumb_path = `${base}_thumb.${img.ext}`;
+    blobs.set(image_path, img.full); blobs.set(image_thumb_path, img.thumb);
+    return { image_path, image_thumb_path, image_width: img.width, image_height: img.height };
+  },
+  async removeFiles(paths) { for (const p of paths) blobs.delete(p); },
 
   async getUrls(paths) {
     const out = {};
