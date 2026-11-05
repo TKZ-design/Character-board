@@ -1,0 +1,13 @@
+# Settings used by the Supabase CLI (the "Deploy Supabase functions" GitHub Action).
+# No secrets here — this file is public.
+project_id = "stash"
+
+# The functions check access themselves, so Supabase's own login-token check
+# ("Verify JWT") is switched off for them:
+#   • link-preview checks that the caller is a logged-in user of this project
+#   • quick-save checks the x-stash-key header (the iPhone sends no login)
+[functions.link-preview]
+verify_jwt = false
+
+[functions.quick-save]
+verify_jwt = false

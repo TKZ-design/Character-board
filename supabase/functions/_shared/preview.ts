@@ -89,6 +89,11 @@ export class PreviewError extends Error {
   constructor(message: string, status = 400) { super(message); this.status = status; }
 }
 
+/** The link points at a private / local / internal address (never fetched, never saved). */
+export class PrivateAddressError extends PreviewError {
+  constructor() { super('Private or local addresses are not allowed', 400); }
+}
+
 /** Throws unless the URL is http(s) on a normal port with a public-looking host name. */
 export function checkUrl(raw: string): URL {
   let u: URL;
@@ -99,9 +104,9 @@ export function checkUrl(raw: string): URL {
   const host = u.hostname.toLowerCase().replace(/\.$/, '');
   if (!host) throw new PreviewError('Missing host');
   const literal = ipv4Parts(host) || host.startsWith('[');
-  if (literal) { if (isPrivateIp(host)) throw new PreviewError('Private or local addresses are not allowed'); return u; }
+  if (literal) { if (isPrivateIp(host)) throw new PrivateAddressError(); return u; }
   if (!host.includes('.') || /(^|\.)(localhost|local|internal|intranet|lan|home|corp|localdomain|home\.arpa)$/.test(host)) {
-    throw new PreviewError('Private or local addresses are not allowed');
+    throw new PrivateAddressError();
   }
   return u;
 }
@@ -113,7 +118,7 @@ async function checkHost(u: URL, deps: Deps) {
   let addrs: string[];
   try { addrs = await deps.resolve(host); } catch { throw new PreviewError('Could not look up that address'); }
   if (!addrs.length) throw new PreviewError('Could not look up that address');
-  if (addrs.some(isPrivateIp)) throw new PreviewError('Private or local addresses are not allowed');
+  if (addrs.some(isPrivateIp)) throw new PrivateAddressError();
 }
 
 // ---------------- fetching ----------------
