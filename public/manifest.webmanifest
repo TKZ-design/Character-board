@@ -1,7 +1,7 @@
 {
-  "name": "Character Inspiration Board",
-  "short_name": "Characters",
-  "description": "A private board for character inspiration.",
+  "name": "Stash",
+  "short_name": "Stash",
+  "description": "Your private stash of character references and saved links.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

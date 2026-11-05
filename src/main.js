@@ -37,7 +37,7 @@ function hubBar(r, sec) {
   return h('header.hubbar',
     h('div.hubbar-inner',
       h(`a.hub-home${r.view === '' ? '.on' : ''}`, { href: '#/', 'aria-label': 'Home', title: 'Home (H)', 'aria-current': r.view === '' ? 'page' : null },
-        icon('home'), h('span.hub-home-label', 'Hub')),
+        icon('home'), h('span.hub-home-label', 'Stash')),
       h('nav.switcher', { 'aria-label': 'Sections' },
         SECTIONS.map((s) => h(`a.switch${sec?.id === s.id ? '.on' : ''}`, {
           href: s.href, 'aria-current': sec?.id === s.id ? 'page' : null,

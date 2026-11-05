@@ -1,6 +1,6 @@
 // Service worker: makes the app installable and lets the app shell load
 // offline/instantly. Your private data (Supabase) is never cached here.
-const CACHE = 'cb-shell-v3';
+const CACHE = 'cb-shell-v4';
 const SHARE_CACHE = 'cb-share'; // images shared from other apps (Android), picked up by src/share.js
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png'];
 

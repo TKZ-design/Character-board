@@ -1,4 +1,4 @@
-# Personal Hub — Characters & Link Vault
+# Stash — Characters & Link Vault
 
 A private, installable web app with two sections (more can be added later):
 
@@ -15,7 +15,8 @@ Your data lives in **your own Supabase project**, and only you can see it once y
 
 ### Hub
 - After login you land on the **home screen** with a large tile per section (with counts and recent pictures).
-- The thin bar at the top of every page jumps between **Hub · Characters · Link Vault**, and holds the light/dark toggle and the **⋮ menu** (backup, sign out). Shortcut `H` goes home.
+- The thin bar at the top of every page jumps between **Stash · Characters · Link Vault**, and holds the light/dark toggle and the **⋮ menu** (backup, sign out). Shortcut `H` goes home.
+- The installed app is called **Stash**. On iPhone, an app already on your Home Screen keeps its old name until you remove it and add it again (Safari → Share → Add to Home Screen).
 
 ### Characters
 - **Grid or List**: the buttons above the characters switch between the big gallery grid and a compact list (small picture, name, source, tags, image count, star). Your choice is remembered on each device.
@@ -40,7 +41,7 @@ Your data lives in **your own Supabase project**, and only you can see it once y
   - the **Paste link** button (reads the link on your clipboard — on iPhone, tap the little *Paste* bubble that appears)
   - **Ctrl+V / Cmd+V** anywhere in the app (not inside a text field)
   - the **“Paste or type a link…”** field at the top of the Link Vault (pasting into it opens the form right away)
-  - the **“Save to Vault”** iPhone Shortcut in the Share sheet (set-up below), or on Android **Share → Characters**
+  - the **“Save to Vault”** iPhone Shortcut in the Share sheet (set-up below), or on Android **Share → Stash**
 - Each link has a **title** (filled in automatically when possible), **notes**, **tags** (the same tags and tag groups as your characters), **favorite**, **status** (*To watch* / *Done*) and optional **characters** it belongs to. Those links also show up on the character's page (with an **Add link** button there).
 - **YouTube** (normal, `youtu.be`, Shorts and live links): the thumbnail comes straight from the video, and it **plays inside the app** with YouTube's privacy-enhanced player (youtube-nocookie.com).
 - **X, Instagram, Reddit**: opening a link shows the post with the platform's **official embed**, loaded only when you open it.
@@ -181,11 +182,11 @@ This adds **Save to Vault** to the Share sheet in YouTube, X, Instagram, Reddit,
 ### On Android (Chrome)
 1. Open the address in **Chrome**.
 2. Tap **⋮ → Install app** (or **Add to Home screen**), then **Install**.
-3. Once installed, **Characters** appears in Android's **Share** sheet: in your gallery, browser or any other app, tap **Share → Characters** on an image and it opens straight to *New character / Add to existing*. Sharing a **link** (from YouTube, X, a browser…) opens the Link Vault's *Add link* form instead.
+3. Once installed, **Stash** appears in Android's **Share** sheet: in your gallery, browser or any other app, tap **Share → Stash** on an image and it opens straight to *New character / Add to existing*. Sharing a **link** (from YouTube, X, a browser…) opens the Link Vault's *Add link* form instead.
    (If you installed the app before this feature existed and it doesn't show up in the Share sheet, remove the app from your home screen and install it again. Sharing into web apps isn't supported on iPhone — use the **Paste** button there.)
 
 ### Pasting on a phone
-Copy an image in another app, open Characters and tap **Paste** (on the board, in *New character*, or under *Add images* on a character). Your browser may ask for permission first. If it blocks access, a box appears instead: **long-press it and choose Paste**.
+Copy an image in another app, open Stash and tap **Paste** (on the board, in *New character*, or under *Add images* on a character). Your browser may ask for permission first. If it blocks access, a box appears instead: **long-press it and choose Paste**.
 
 ---
 

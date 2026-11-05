@@ -95,7 +95,7 @@ export async function exportZip() {
     }, null, 2));
     if (state.linksReady) {
       zip.file('Link Vault/links.json', JSON.stringify({
-        app: 'Personal Hub — Link Vault',
+        app: 'Stash — Link Vault',
         exported_at: new Date().toISOString(),
         count: linkMeta.length,
         links: linkMeta,
