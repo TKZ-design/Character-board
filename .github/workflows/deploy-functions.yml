@@ -1,0 +1,71 @@
+name: Deploy Supabase functions
+
+# Publishes every Edge Function in supabase/functions (link-preview, quick-save)
+# to your Supabase project whenever their code changes on main.
+# Also runnable by hand: Actions tab → "Deploy Supabase functions" → Run workflow.
+#
+# Needs two repository secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN  – a personal access token from supabase.com/dashboard/account/tokens
+#   SUPABASE_PROJECT_REF   – your project's reference ID (e.g. imorekpkzucpjpplyabq)
+# Without them this workflow does nothing and still finishes green.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - 'supabase/config.toml'
+      - '.github/workflows/deploy-functions.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-functions
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Check that the Supabase secrets are set
+        id: secrets
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_PROJECT_REF" ]; then
+            echo "::notice title=Supabase functions were not deployed::Add the repository secrets SUPABASE_ACCESS_TOKEN and SUPABASE_PROJECT_REF (see README, step 6) to deploy automatically."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ready == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Run the tests first (never deploy broken code)
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          npm ci
+          npm test
+
+      - uses: supabase/setup-cli@v1
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          version: latest
+
+      - name: Deploy all functions
+        if: steps.secrets.outputs.ready == 'true'
+        # --use-api bundles on Supabase's side (no Docker needed).
+        # --yes answers the CLI's "deploy to this project?" question (nobody is there to click).
+        # Function settings (verify_jwt) come from supabase/config.toml.
+        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF" --use-api --yes
