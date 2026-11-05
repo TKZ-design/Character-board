@@ -388,7 +388,8 @@ async function boot() {
     names.forEach((n) => params.delete(n));
     history.replaceState(null, '', location.pathname + (params.size ? `?${params}` : '') + location.hash);
   };
-  // "?add=<link>" comes from the iOS Shortcut "Save to Vault" (or an Android share of a link)
+  // "?add=<link>": the older iOS Shortcut / any link that opens the app pre-filled (or an Android share of a link).
+  // Kept as a fallback — the "Save to Stash" Shortcut now saves silently through the quick-save Edge Function.
   if (params.has('add')) {
     stashPendingAdd(params.get('add'));
     cleanParams('add');

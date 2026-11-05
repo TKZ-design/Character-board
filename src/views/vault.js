@@ -105,7 +105,7 @@ export function renderVault(root, rerender) {
   if (!state.links.length) {
     root.replaceChildren(h('div.empty',
       h('h2', 'No links yet'),
-      h('p.muted', 'Paste a link anywhere (Ctrl+V), use Paste link, type one above — or on iPhone, share it with the “Save to Vault” shortcut.'),
+      h('p.muted', 'Paste a link anywhere (Ctrl+V), use Paste link, type one above — or on iPhone, share it with the “Save to Stash” shortcut (it saves silently, no app needed).'),
       h('div.row', pasteLinkButton(), h('button.btn.primary', { onclick: () => openAddLink() }, 'Add link'))));
     return;
   }
