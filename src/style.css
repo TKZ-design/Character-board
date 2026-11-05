@@ -974,3 +974,79 @@ li:last-child > .merge-option, li:last-child > .char-pick-item { border-bottom: 
   .switcher { gap: 0 14px; padding-left: 10px; }
   .switch { font-size: 11px; letter-spacing: 0.07em; }
 }
+
+/* ---------- Notes ---------- */
+.note-compose {
+  display: flex; align-items: flex-start; gap: 12px; max-width: 720px;
+  border-bottom: 1px solid var(--strong-line);
+}
+.note-compose:focus-within { box-shadow: 0 1px 0 0 var(--text); }
+.note-compose .quick-add-icon { padding-top: 16px; }
+.note-compose textarea {
+  border: 0; outline: 0; resize: none; padding: 14px 0; min-height: 52px; max-height: 40vh;
+  font-size: 17px; line-height: 1.45;
+}
+.note-compose textarea:focus, .note-compose textarea:focus-visible { border: 0; outline: 0; box-shadow: none; }
+.note-compose .btn { flex: none; margin-top: 4px; }
+.note-compose .note-count { align-self: center; flex: none; }
+.notes-head .filterbar { margin-top: 32px; }
+.notes-search { flex: 1 1 auto; max-width: 520px; }
+
+.notes-list { columns: 3; column-gap: var(--gap); }
+.note {
+  break-inside: avoid; margin: 0 0 44px;
+  border-top: 1px solid var(--strong-line); padding-top: 14px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.note-meta { margin: 0; color: var(--muted); font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.14em; }
+.note-body {
+  font-size: 16px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 12; line-clamp: 12; overflow: hidden;
+}
+.note-body.open { display: block; -webkit-line-clamp: unset; line-clamp: none; overflow: visible; }
+.note-body a { color: var(--text); }
+.note-more { align-self: flex-start; min-height: 32px; padding: 0; font-size: 13px; text-decoration: underline; }
+.note-actions { display: flex; flex-wrap: wrap; gap: 0 18px; margin-left: -2px; }
+.note-actions .btn { padding: 0 2px; }
+.note-actions .btn.danger.ghost { padding: 0 2px; }
+
+.modal.note-modal { width: min(640px, calc(100vw - 24px)); }
+.note-editor { min-height: 220px; max-height: 60vh; font-size: 16px; line-height: 1.5; }
+.note-editor-foot { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-top: -8px; min-height: 0; }
+.note-editor-foot .field-error { margin: 0; }
+.note-count { font-size: 12px; color: var(--muted); letter-spacing: 0.04em; margin-left: auto; }
+.note-count.over { color: var(--accent); font-weight: 600; }
+
+/* home tile: note snippets instead of pictures */
+.hub-tile-note { padding: 14px 16px; overflow: hidden; }
+.hub-tile-note span {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; line-clamp: 5; overflow: hidden;
+  font-family: var(--serif); font-size: 20px; line-height: 1.2; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.hub-tile-media[data-n='3'] .hub-tile-note:first-child span { -webkit-line-clamp: 10; line-clamp: 10; font-size: 24px; }
+
+@media (max-width: 1100px) { .notes-list { columns: 2; } }
+@media (max-width: 640px) {
+  .notes-list { columns: 1; }
+  .note { margin-bottom: 32px; }
+  .note-compose { gap: 10px; }
+  .note-compose textarea { font-size: 16px; } /* 16px stops iOS from zooming in */
+  .note-compose .btn.primary { padding: 0 16px; }
+  .hub-tile-note { padding: 10px 12px; }
+  .hub-tile-note span { font-size: 17px; -webkit-line-clamp: 3; line-clamp: 3; }
+  .hub-tile-media[data-n='3'] .hub-tile-note:first-child span { -webkit-line-clamp: 7; line-clamp: 7; font-size: 20px; }
+}
+
+/* three sections must fit the phone's section bar without scrolling */
+@media (max-width: 640px) {
+  .hubbar-inner { gap: 4px 8px; }
+  .switcher { gap: 0 14px; padding-left: 12px; }
+  .switch { letter-spacing: 0.08em; }
+  .hubbar .utility .icon-btn { width: 40px; }
+}
+@media (max-width: 380px) {
+  .hubbar-inner { gap: 4px 4px; padding-left: 10px; padding-right: 10px; }
+  .switcher { gap: 0 10px; padding-left: 8px; }
+  .switch { font-size: 10.5px; letter-spacing: 0.04em; }
+  .hubbar .utility .icon-btn { width: 36px; }
+}

@@ -212,6 +212,20 @@ export const realApi = {
     return data;
   },
 
+  // ---------- Notes ----------
+  async listNotes() {
+    return check(await supabase.from('notes').select('id, body, created_at, updated_at').order('created_at', { ascending: false }));
+  },
+  async createNote(body) {
+    return check(await supabase.from('notes').insert({ body }).select('id, body, created_at, updated_at').single());
+  },
+  async updateNote(id, body) {
+    return check(await supabase.from('notes').update({ body }).eq('id', id).select('id, body, created_at, updated_at').single());
+  },
+  async deleteNote(id) {
+    check(await supabase.from('notes').delete().eq('id', id));
+  },
+
   /** Returns { path: signedUrl } for the given storage paths (cached). */
   async getUrls(paths) {
     const now = Date.now();

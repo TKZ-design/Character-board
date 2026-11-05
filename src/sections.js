@@ -33,6 +33,20 @@ export const SECTIONS = [
       return [plural(state.links.length, 'link'), todo ? `${todo} to watch` : null, favs ? plural(favs, 'favorite') : null];
     },
   },
+  {
+    id: 'notes',
+    title: 'Notes',
+    short: 'Notes',
+    href: '#/notes',
+    views: ['notes'],
+    count: () => state.notes.length,
+    summary() {
+      if (state.notesReady === false) return ['Needs a database update'];
+      const today = new Date().toDateString();
+      const fresh = state.notes.filter((n) => new Date(n.created_at).toDateString() === today).length;
+      return [plural(state.notes.length, 'note'), fresh ? `${fresh} today` : null];
+    },
+  },
 ];
 
 /** The section a route belongs to (the Tags page belongs to whichever you came from). */

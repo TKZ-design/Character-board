@@ -5,6 +5,9 @@ import { linkMedia } from './link-card.js';
 import { loadThumbs } from '../thumbs.js';
 import { pasteLinkButton } from './add-link.js';
 import { openNewCharacter } from './new-character.js';
+import { openNoteEditor } from './notes.js';
+import { newestFirst } from '../notes.js';
+import { rerender } from '../nav.js';
 
 /** Up to 3 recent pictures for a tile. */
 function previews(id) {
@@ -14,6 +17,9 @@ function previews(id) {
   }
   if (id === 'links') {
     return state.links.slice(0, 3).map((l) => h('span.hub-tile-pic', linkMedia(l, { size: 'tile' })));
+  }
+  if (id === 'notes') {
+    return newestFirst(state.notes).slice(0, 3).map((n) => h('span.hub-tile-pic.hub-tile-note', h('span', n.body.slice(0, 240))));
   }
   return [];
 }
@@ -37,7 +43,8 @@ export function renderHome(root) {
         h('h1.title', nonEmpty ? 'Welcome back' : 'Welcome', h('span.title-dot', '.'))),
       h('div.actions',
         state.linksReady ? pasteLinkButton() : null,
-        h('button.btn', { onclick: () => openNewCharacter() }, icon('plus'), 'New character'))),
+        h('button.btn', { onclick: () => openNewCharacter() }, icon('plus'), 'New character'),
+        state.notesReady ? h('button.btn', { onclick: () => openNoteEditor(null, rerender) }, icon('plus'), 'New note') : null)),
     h('nav.hub-tiles', { 'aria-label': 'Sections' }, SECTIONS.map(tile)));
   loadThumbs(root);
 }

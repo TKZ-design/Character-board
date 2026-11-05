@@ -17,6 +17,7 @@ import { openImageChooser } from './views/image-chooser.js';
 import { renderVault, vaultMasthead } from './views/vault.js';
 import { renderLinkDetail, resetLinkEditing } from './views/link-detail.js';
 import { openAddLink, pasteLinkButton } from './views/add-link.js';
+import { renderNotes, notesMasthead, openNoteEditor } from './views/notes.js';
 import { fillPendingPreviews } from './previews.js';
 import { pasteButton } from './paste.js';
 import { takeSharedFiles } from './share.js';
@@ -93,6 +94,7 @@ function sectionHeader(r, sec) {
       filterBar(searchInput, render));
   }
   if (r.view === 'links') return vaultMasthead(linkActions(r), render, renderView);
+  if (r.view === 'notes') return notesMasthead(render, renderView);
   // detail pages, compare, tags: a back link + the section's actions
   const back = sec || SECTIONS[0];
   return h('header.topbar',
@@ -144,6 +146,7 @@ const ROUTES = {
   tags: (root) => renderTags(root),
   links: (root) => renderVault(root, render),
   l: (root, arg) => renderLinkDetail(root, arg),
+  notes: (root) => renderNotes(root, render),
 };
 
 function renderView() {
@@ -163,7 +166,7 @@ function render() {
     resetLinkEditing();
     if (r.view !== 'characters') { state.compareMode = false; state.compareSel = []; }
     const sec = sectionOf(r.view);
-    if (sec && r.view !== 'tags') state.lastSection = sec.id;
+    if (sec && r.view !== 'tags' && sec.id !== 'notes') state.lastSection = sec.id; // notes have no tags
     lastRoute = key;
     window.scrollTo(0, 0);
   }
@@ -225,7 +228,11 @@ document.addEventListener('keydown', (e) => {
   const r = route();
   const inLinks = sectionOf(r.view)?.id === 'links' && r.view !== 'tags';
   if (e.key === '/') { const s = document.getElementById('search'); if (s) { e.preventDefault(); s.focus(); } }
-  else if (e.key === 'n') { e.preventDefault(); if (inLinks) openAddLink(); else openNewCharacter(); }
+  else if (e.key === 'n') {
+    e.preventDefault();
+    if (r.view === 'notes') { if (state.notesReady) openNoteEditor(null, render); }
+    else if (inLinks) openAddLink(); else openNewCharacter();
+  }
   else if (e.key === 'r') { e.preventDefault(); goRandom(); }
   else if (e.key === 't') { e.preventDefault(); go('#/tags'); }
   else if (e.key === 'h') { e.preventDefault(); go('#/'); }
@@ -263,7 +270,9 @@ function takePendingAdd() {
 
 // ---------------- boot ----------------
 async function loadData() {
-  const links = loadLinks(); // independent: a missing Link Vault table must never break the character board
+  // independent: a missing Link Vault / Notes table must never break the character board
+  const links = loadLinks();
+  const notes = loadNotes();
   try {
     const [characters, tags, groups] = await Promise.all([api.listCharacters(), api.listTags(), api.listGroups()]);
     state.characters = characters;
@@ -276,7 +285,7 @@ async function loadData() {
       toast('The database needs an update — run the SQL files in supabase/migrations (see README).', { type: 'error', timeout: 0 });
     }
   }
-  await links;
+  await Promise.all([links, notes]);
 }
 
 const needsMigration = (e) => /relation .* does not exist|schema cache|column .* does not exist|could not find the table/i.test(e?.message || '');
@@ -292,6 +301,45 @@ async function loadLinks() {
     if (!needsMigration(e)) errorToast(e);
   }
 }
+
+async function loadNotes() {
+  try {
+    state.notes = await api.listNotes();
+    state.notesReady = true;
+  } catch (e) {
+    console.error(e);
+    state.notes = [];
+    state.notesReady = false;
+    if (!needsMigration(e)) errorToast(e);
+  }
+}
+
+/**
+ * Links and notes saved from the iPhone Shortcuts while the app was in the
+ * background: when you come back to the app, fetch just the new ones and add
+ * them (existing items are never replaced, so nothing you're editing is lost).
+ */
+let lastRefresh = Date.now();
+async function refreshFromShortcuts() {
+  if (!state.user || !state.loaded || Date.now() - lastRefresh < 20_000) return;
+  lastRefresh = Date.now();
+  let added = 0;
+  const merge = (list, fresh) => {
+    const have = new Set(list.map((x) => x.id));
+    const extra = fresh.filter((x) => !have.has(x.id));
+    added += extra.length;
+    return extra;
+  };
+  try {
+    if (state.linksReady) { const extra = merge(state.links, await api.listLinks()); if (extra.length) state.links = [...extra, ...state.links]; }
+    if (state.notesReady) { const extra = merge(state.notes, await api.listNotes()); if (extra.length) state.notes = [...extra, ...state.notes]; }
+  } catch (e) { console.warn('Refresh failed:', e); return; }
+  if (!added) return;
+  // never re-render over a form you're typing in
+  if (!document.querySelector('.detail-info form, dialog[open], .note-compose textarea:focus') && !(document.activeElement?.value)) render();
+  fillPendingPreviews(render);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshFromShortcuts(); });
 
 /** Images shared from another app (Android Share → Characters), waiting in the service worker's cache. */
 async function pickUpShared() {
@@ -318,6 +366,7 @@ async function onUser(user) {
   } else {
     state.characters = []; state.tagList = []; state.groups = []; state.tags.clear();
     state.links = []; state.linksReady = null; state.linkFilter.tags.clear();
+    state.notes = []; state.notesReady = null; state.noteSearch = '';
   }
   render();
   if (user && state.loaded) {

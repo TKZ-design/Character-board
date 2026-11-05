@@ -1,17 +1,20 @@
 import { api, state, tagsOf, groupById, findChar, linksOf, linkTitle } from './state.js';
 import { toast, errorToast } from './ui.js';
+import { newestFirst } from './notes.js';
 
 const safe = (s) => (s || 'untitled').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) || 'untitled';
 const ext = (path) => (path.match(/\.(\w+)$/) || [, 'webp'])[1];
 
 /**
  * Download everything as a ZIP: one folder of images per character + characters.json,
- * and a "Link Vault" folder with links.json + your custom link thumbnails.
+ * a "Link Vault" folder with links.json + your custom link thumbnails,
+ * and a "Notes" folder with notes.json + notes.md (easy to read anywhere).
  */
 export async function exportZip() {
   const chars = state.characters;
   const links = state.links;
-  if (!chars.length && !links.length) { toast('Nothing to back up yet'); return; }
+  const notes = newestFirst(state.notes);
+  if (!chars.length && !links.length && !notes.length) { toast('Nothing to back up yet'); return; }
   const t = toast('Preparing backup…', { timeout: 0 });
   try {
     const { default: JSZip } = await import('jszip');
@@ -19,7 +22,7 @@ export async function exportZip() {
     const covers = links.filter((l) => l.cover_path);
     const total = chars.reduce((n, c) => n + c.images.length, 0) + covers.length;
     let done = 0, failed = 0;
-    const used = new Set(['link vault']); // reserved for the Link Vault folder
+    const used = new Set(['link vault', 'notes']); // reserved for the Link Vault and Notes folders
     const meta = [];
     const jobs = [];
 
@@ -102,6 +105,17 @@ export async function exportZip() {
       }, null, 2));
     }
 
+    // ----- Notes -----
+    if (state.notesReady) {
+      zip.file('Notes/notes.json', JSON.stringify({
+        app: 'Stash — Notes',
+        exported_at: new Date().toISOString(),
+        count: notes.length,
+        notes: notes.map((n) => ({ body: n.body, created_at: n.created_at, updated_at: n.updated_at })),
+      }, null, 2));
+      zip.file('Notes/notes.md', notesMarkdown(notes));
+    }
+
     t.update('Zipping…');
     // images are already compressed, so just store them (much faster)
     const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' }, (m) => t.update(`Zipping… ${Math.round(m.percent)}%`));
@@ -113,10 +127,16 @@ export async function exportZip() {
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
     t.close();
-    toast(failed ? `Backup downloaded, but ${failed} image(s) failed` : `Backup downloaded (${meta.length} characters, ${linkMeta.length} links, ${total} images)`,
+    toast(failed ? `Backup downloaded, but ${failed} image(s) failed` : `Backup downloaded (${meta.length} characters, ${linkMeta.length} links, ${notes.length} notes, ${total} images)`,
       { type: failed ? 'error' : 'ok', timeout: 6000 });
   } catch (e) {
     t.close();
     errorToast(e);
   }
+}
+
+/** All notes as one readable Markdown file, newest first. */
+export function notesMarkdown(notes) {
+  const parts = notes.map((n) => `## ${new Date(n.created_at).toLocaleString()}\n\n${n.body}\n`);
+  return `# Notes\n\nExported ${new Date().toLocaleString()} · ${notes.length} note${notes.length === 1 ? '' : 's'}\n\n${parts.join('\n---\n\n')}`;
 }

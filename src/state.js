@@ -22,6 +22,9 @@ export const state = {
   lastSection: 'characters', // where the Tags page's back link goes
   linksReady: null,       // null = loading, true = ok, false = database table missing (migration not run)
   linkFilter: { search: '', tags: new Set(), status: '', favoritesOnly: false, platform: '' },
+  notes: [],              // Notes: { id, body, created_at, updated_at }
+  notesReady: null,       // null = loading, true = ok, false = database table missing (migration not run)
+  noteSearch: '',
   charView: getPref('char-view', 'grid', VIEWS),
   charSort: getPref('char-sort', 'added', SORTS),
   linkView: getPref('link-view', 'grid', VIEWS),

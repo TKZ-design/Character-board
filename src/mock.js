@@ -14,6 +14,7 @@ let links = [];     // { character_id, tag_id }
 let vault = [];     // Link Vault rows
 let vaultTags = []; // { link_id, tag_id }
 let vaultChars = [];// { link_id, character_id }
+let notes = [];     // Notes
 
 function swatch(color, w, h, label) {
   const c = document.createElement('canvas');
@@ -80,6 +81,16 @@ async function seed() {
       preview_status: thumb ? 'ok' : 'none', preview_fetched_at: t, created_at: t, updated_at: t });
     for (const n of tagNames) vaultTags.push({ link_id: id, tag_id: ensureTag(n).id });
     for (const n of charNames) vaultChars.push({ link_id: id, character_id: charId(n) });
+  });
+  const demoNotes = [
+    'Idea: a courier who only delivers letters that were never sent.',
+    'Palette for Moss Witch → olive, rust, bone white. Check https://www.artstation.com/artwork/noir-palette again.',
+    'Shopping list for the con:\n- sketchbook (A5)\n- grey markers\n- business cards',
+    'Captain Vex: the scar is from her first mutiny, not a fight. She tells everyone it was a fight.',
+  ];
+  demoNotes.forEach((body, i) => {
+    const t = new Date(Date.now() - (i * 26 + 2) * 3600e3).toISOString();
+    notes.push({ id: crypto.randomUUID(), body, created_at: t, updated_at: i === 2 ? now() : t });
   });
   for (const t of tags) {
     if (['Sci-fi', 'Fantasy', 'Noir'].includes(t.name)) t.group_id = genre.id;
@@ -235,6 +246,20 @@ export const mockApi = {
     return { ok: true, url, title: `Preview of ${domainOf(url)}`, description: 'Mock Open Graph description.',
       image: URL.createObjectURL(await swatch('#4d7c0f', 640, 360, domainOf(url).split('.')[0])), site_name: domainOf(url) };
   },
+
+  // ---------- Notes ----------
+  async listNotes() { await delay(); return structuredClone(notes); },
+  async createNote(body) {
+    await delay();
+    const n = { id: crypto.randomUUID(), body, created_at: now(), updated_at: now() };
+    notes.unshift(n);
+    return structuredClone(n);
+  },
+  async updateNote(id, body) {
+    await delay();
+    const n = notes.find((x) => x.id === id); Object.assign(n, { body, updated_at: now() }); return structuredClone(n);
+  },
+  async deleteNote(id) { await delay(); notes = notes.filter((n) => n.id !== id); },
 
   async getUrls(paths) {
     const out = {};
