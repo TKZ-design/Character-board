@@ -130,6 +130,7 @@ export const realApi = {
   async deleteTag(id) {
     check(await supabase.from('tags').delete().eq('id', id));
   },
+  /** Character tags only (Vault tags have mergeVaultTags). */
   async mergeTags(sourceIds, targetId) {
     check(await supabase.rpc('merge_tags', { p_source_ids: sourceIds, p_target_id: targetId }));
   },
@@ -165,7 +166,42 @@ export const realApi = {
     const paths = [link.cover_path, link.cover_thumb_path].filter(Boolean);
     if (paths.length) await supabase.storage.from(BUCKET).remove(paths);
   },
-  /** Replace a link's tags by name (missing tags are created). Returns the link's tag rows. */
+  /** Move many links into one folder (null = Unsorted). */
+  async moveLinks(ids, folderId) {
+    if (!ids.length) return;
+    check(await supabase.from('vault_links').update({ folder_id: folderId }).in('id', ids));
+  },
+
+  // ---------- Link Vault: folders ----------
+  async listFolders() {
+    return check(await supabase.from('vault_folders').select('id, name, parent_id, position').order('position'));
+  },
+  async createFolder(fields) {
+    return check(await supabase.from('vault_folders').insert(fields).select('id, name, parent_id, position').single());
+  },
+  async updateFolder(id, patch) {
+    return check(await supabase.from('vault_folders').update(patch).eq('id', id).select('id, name, parent_id, position').single());
+  },
+  /** The database moves the folder's links and subfolders to its parent first. Returns the folders afterwards. */
+  async deleteFolder(id) {
+    check(await supabase.from('vault_folders').delete().eq('id', id));
+    return this.listFolders();
+  },
+
+  // ---------- Link Vault: tags (separate from character tags) ----------
+  async listVaultTags() {
+    return check(await supabase.from('vault_tags').select('id, name').order('name'));
+  },
+  async updateVaultTag(id, patch) {
+    return check(await supabase.from('vault_tags').update(patch).eq('id', id).select('id, name').single());
+  },
+  async deleteVaultTag(id) {
+    check(await supabase.from('vault_tags').delete().eq('id', id));
+  },
+  async mergeVaultTags(sourceIds, targetId) {
+    check(await supabase.rpc('merge_vault_tags', { p_source_ids: sourceIds, p_target_id: targetId }));
+  },
+  /** Replace a link's tags by name (missing Vault tags are created). Returns the link's Vault tag rows. */
   async setLinkTags(linkId, names) {
     return check(await supabase.rpc('set_link_tags', { p_link_id: linkId, p_names: names }));
   },

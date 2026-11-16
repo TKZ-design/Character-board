@@ -11,7 +11,7 @@ export const SECTIONS = [
     title: 'Characters',
     short: 'Characters',
     href: '#/characters',
-    views: ['characters', 'c', 'compare'],
+    views: ['characters', 'c', 'compare', 'tags'],
     count: () => state.characters.length,
     summary() {
       const imgs = state.characters.reduce((n, c) => n + c.images.length, 0);
@@ -24,19 +24,18 @@ export const SECTIONS = [
     title: 'Link Vault',
     short: 'Links',
     href: '#/links',
-    views: ['links', 'l'],
+    views: ['links', 'l', 'vault-tags'],
     count: () => state.links.length,
     summary() {
       if (state.linksReady === false) return ['Needs a database update'];
       const todo = state.links.filter((l) => l.status === 'todo').length;
       const favs = state.links.filter((l) => l.is_favorite).length;
-      return [plural(state.links.length, 'link'), todo ? `${todo} to watch` : null, favs ? plural(favs, 'favorite') : null];
+      return [plural(state.links.length, 'link'), state.folders.length ? plural(state.folders.length, 'folder') : null, todo ? `${todo} to watch` : null, favs ? plural(favs, 'favorite') : null];
     },
   },
 ];
 
-/** The section a route belongs to (the Tags page belongs to whichever you came from). */
+/** The section a route belongs to ('tags' = character tags, 'vault-tags' = Link Vault tags). */
 export function sectionOf(view) {
-  if (view === 'tags') return SECTIONS.find((s) => s.id === state.lastSection) || SECTIONS[0];
   return SECTIONS.find((s) => s.views.includes(view)) || null;
 }

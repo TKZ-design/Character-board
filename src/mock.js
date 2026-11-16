@@ -2,6 +2,7 @@
 // dev server. Never included in the production build.
 import { cleanTag, tagKey } from './text.js';
 import { platformOf, domainOf } from './links.js';
+import { convertTagsToFolders, createProblem, moveProblem, applyDelete, nextPosition, cleanFolderName, folderById } from './folders.js';
 
 const delay = (ms = 60) => new Promise((r) => setTimeout(r, ms));
 const now = () => new Date().toISOString();
@@ -12,7 +13,9 @@ let tags = [];      // { id, name, group_id }
 let groups = [];    // { id, name }
 let links = [];     // { character_id, tag_id }
 let vault = [];     // Link Vault rows
-let vaultTags = []; // { link_id, tag_id }
+let vaultTags = []; // { link_id, tag_id } — tag_id points at vtags
+let vtags = [];     // Vault-only tags { id, name }
+let folders = [];   // { id, name, parent_id, position }
 let vaultChars = [];// { link_id, character_id }
 
 function swatch(color, w, h, label) {
@@ -35,6 +38,14 @@ function ensureTag(name) {
   if (!t) { t = { id: crypto.randomUUID(), name: n, group_id: null }; tags.push(t); }
   return t;
 }
+function ensureVaultTag(name) {
+  const n = cleanTag(name);
+  if (!n) return null;
+  let t = vtags.find((x) => tagKey(x.name) === tagKey(n));
+  if (!t) { t = { id: crypto.randomUUID(), name: n }; vtags.push(t); }
+  return t;
+}
+const dbError = (message, code = 'P0001') => Object.assign(new Error(message), { code });
 const tagIdsOf = (cid) => links.filter((l) => l.character_id === cid).map((l) => l.tag_id);
 const withTags = (c) => ({ ...structuredClone(c), tag_ids: tagIdsOf(c.id) });
 
@@ -71,6 +82,7 @@ async function seed() {
     ['https://www.reddit.com/r/ImaginaryCharacters/comments/1abc2d/the_courier_by_me/', 'The Courier (OC)', 'done', ['cozy'], ['Pip the Courier'], reddit, false],
     ['https://www.artstation.com/artwork/noir-palette', 'Noir detective palette study', 'todo', ['Noir'], ['Detective Oona'], art, true],
   ];
+  const oldLinkTags = []; // how links were tagged before folders existed (shared tags)
   demoLinks.forEach(([url, title, status, tagNames, charNames, thumb, fav], i) => {
     const id = crypto.randomUUID();
     const t = new Date(Date.now() - (i + 1) * 3600e3).toISOString();
@@ -78,13 +90,22 @@ async function seed() {
       site_name: thumb ? domainOf(url) : '', platform: platformOf(url), thumbnail_url: thumb, cover_path: null, cover_thumb_path: null,
       cover_width: null, cover_height: null, notes: i === 0 ? 'Watch the part about silhouettes.' : '', status, is_favorite: fav,
       preview_status: thumb ? 'ok' : 'none', preview_fetched_at: t, created_at: t, updated_at: t });
-    for (const n of tagNames) vaultTags.push({ link_id: id, tag_id: ensureTag(n).id });
+    for (const n of tagNames) oldLinkTags.push({ link_id: id, tag_id: ensureTag(n).id });
     for (const n of charNames) vaultChars.push({ link_id: id, character_id: charId(n) });
   });
   for (const t of tags) {
     if (['Sci-fi', 'Fantasy', 'Noir'].includes(t.name)) t.group_id = genre.id;
     if (['Villain', 'Hero', 'Sidekick'].includes(t.name)) t.group_id = role.id;
   }
+  // the same one-time conversion as supabase/migrations/20261116_01_vault_folders_tags.sql
+  const conv = convertTagsToFolders({ tags, linkTags: oldLinkTags, characterTags: links, folders });
+  for (const f of conv.folders) folders.push({ id: crypto.randomUUID(), name: f.name, parent_id: null, position: f.position });
+  for (const l of vault) {
+    const name = conv.linkFolder.get(l.id);
+    l.folder_id = name ? folders.find((f) => !f.parent_id && tagKey(f.name) === tagKey(name)).id : null;
+  }
+  for (const x of conv.vaultLinkTags) vaultTags.push({ link_id: x.link_id, tag_id: ensureVaultTag(x.name).id });
+  tags = tags.filter((t) => !conv.deleteTagIds.includes(t.id));
 }
 
 let seeded;
@@ -153,7 +174,6 @@ export const mockApi = {
     await delay();
     tags = tags.filter((t) => t.id !== id);
     links = links.filter((l) => l.tag_id !== id);
-    vaultTags = vaultTags.filter((l) => l.tag_id !== id);
   },
   async mergeTags(sourceIds, targetId) {
     await delay();
@@ -162,10 +182,6 @@ export const mockApi = {
       if (!links.some((x) => x.character_id === l.character_id && x.tag_id === targetId)) links.push({ character_id: l.character_id, tag_id: targetId });
     }
     links = links.filter((l) => !src.has(l.tag_id));
-    for (const l of vaultTags.filter((x) => src.has(x.tag_id))) {
-      if (!vaultTags.some((x) => x.link_id === l.link_id && x.tag_id === targetId)) vaultTags.push({ link_id: l.link_id, tag_id: targetId });
-    }
-    vaultTags = vaultTags.filter((l) => !src.has(l.tag_id));
     tags = tags.filter((t) => !src.has(t.id));
   },
   async createGroup(name) {
@@ -195,7 +211,8 @@ export const mockApi = {
   },
   async createLink(f) {
     await delay();
-    const l = { id: crypto.randomUUID(), user_id: user.id, title: '', description: '', site_name: '', platform: 'web', thumbnail_url: null,
+    if (f.folder_id && !folderById(folders, f.folder_id)) throw dbError('new row violates row-level security policy for table "vault_links"', '42501');
+    const l = { id: crypto.randomUUID(), user_id: user.id, folder_id: null, title: '', description: '', site_name: '', platform: 'web', thumbnail_url: null,
       cover_path: null, cover_thumb_path: null, cover_width: null, cover_height: null, notes: '', status: 'todo', is_favorite: false,
       preview_status: 'pending', preview_fetched_at: null, ...f, created_at: now(), updated_at: now() };
     vault.unshift(l);
@@ -203,6 +220,7 @@ export const mockApi = {
   },
   async updateLink(id, patch) {
     await delay();
+    if (patch.folder_id && !folderById(folders, patch.folder_id)) throw dbError('Folder not found');
     const l = vault.find((x) => x.id === id); Object.assign(l, patch, { updated_at: now() }); return structuredClone(l);
   },
   async deleteLink(link) {
@@ -212,9 +230,69 @@ export const mockApi = {
   },
   async setLinkTags(linkId, names) {
     await delay();
-    const ids = [...new Set(names.map(ensureTag).filter(Boolean).map((t) => t.id))];
+    const ids = [...new Set(names.map(ensureVaultTag).filter(Boolean).map((t) => t.id))];
     vaultTags = vaultTags.filter((x) => x.link_id !== linkId).concat(ids.map((tag_id) => ({ link_id: linkId, tag_id })));
-    return structuredClone(tags.filter((t) => ids.includes(t.id)));
+    return structuredClone(vtags.filter((t) => ids.includes(t.id)));
+  },
+  async moveLinks(ids, folderId) {
+    await delay();
+    if (folderId && !folderById(folders, folderId)) throw dbError('Folder not found');
+    for (const l of vault) if (ids.includes(l.id)) Object.assign(l, { folder_id: folderId, updated_at: now() });
+  },
+
+  // ---------- Link Vault: folders (same rules as the database) ----------
+  async listFolders() { await delay(); return structuredClone(folders); },
+  async createFolder({ name, parent_id = null, position }) {
+    await delay();
+    const problem = createProblem(folders, parent_id, name);
+    if (problem) throw dbError(/already/.test(problem) ? 'duplicate key value violates unique constraint "vault_folders_user_parent_name_key"' : problem, /already/.test(problem) ? '23505' : 'P0001');
+    const f = { id: crypto.randomUUID(), name: cleanFolderName(name), parent_id, position: position ?? nextPosition(folders, parent_id) };
+    folders.push(f); return structuredClone(f);
+  },
+  async updateFolder(id, patch) {
+    await delay();
+    const f = folderById(folders, id);
+    if ('parent_id' in patch && patch.parent_id !== f.parent_id) {
+      const problem = moveProblem(folders, id, patch.parent_id);
+      if (problem) throw dbError(/already/.test(problem) ? 'duplicate key value violates unique constraint "vault_folders_user_parent_name_key"' : problem, /already/.test(problem) ? '23505' : 'P0001');
+    }
+    if (patch.name != null) {
+      const n = cleanFolderName(patch.name);
+      const parent = 'parent_id' in patch ? patch.parent_id : f.parent_id;
+      if (folders.some((x) => x.id !== id && (x.parent_id ?? null) === (parent ?? null) && tagKey(x.name) === tagKey(n))) {
+        throw dbError('duplicate key value violates unique constraint "vault_folders_user_parent_name_key"', '23505');
+      }
+      patch = { ...patch, name: n };
+    }
+    Object.assign(f, patch); return structuredClone(f);
+  },
+  async deleteFolder(id) {
+    await delay();
+    folders = applyDelete(folders, vault, id);
+    return structuredClone(folders);
+  },
+
+  // ---------- Link Vault: tags ----------
+  async listVaultTags() { await delay(); return structuredClone(vtags); },
+  async updateVaultTag(id, patch) {
+    await delay();
+    const n = cleanTag(patch.name);
+    if (vtags.some((x) => x.id !== id && tagKey(x.name) === tagKey(n))) throw uniqueErr('vault_tags');
+    const t = vtags.find((x) => x.id === id); t.name = n; return structuredClone(t);
+  },
+  async deleteVaultTag(id) {
+    await delay();
+    vtags = vtags.filter((t) => t.id !== id);
+    vaultTags = vaultTags.filter((x) => x.tag_id !== id);
+  },
+  async mergeVaultTags(sourceIds, targetId) {
+    await delay();
+    const src = new Set(sourceIds.filter((id) => id !== targetId));
+    for (const l of vaultTags.filter((x) => src.has(x.tag_id))) {
+      if (!vaultTags.some((x) => x.link_id === l.link_id && x.tag_id === targetId)) vaultTags.push({ link_id: l.link_id, tag_id: targetId });
+    }
+    vaultTags = vaultTags.filter((x) => !src.has(x.tag_id));
+    vtags = vtags.filter((t) => !src.has(t.id));
   },
   async setLinkCharacters(linkId, ids) {
     await delay();

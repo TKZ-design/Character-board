@@ -3,7 +3,7 @@
 A private, installable web app with two sections (more can be added later):
 
 - **Characters** — your character inspiration board: images, tags, notes and source links.
-- **Link Vault** — saved links (YouTube, X, Instagram Reels, Reddit, any website) with thumbnails, tags, notes, a *To watch / Done* status, favorites and links to your characters.
+- **Link Vault** — saved links (YouTube, X, Instagram Reels, Reddit, any website) in **folders** (like browser bookmarks), with thumbnails, their own tags, notes, a *To watch / Done* status, favorites and links to your characters.
 
 Your data lives in **your own Supabase project**, and only you can see it once you're logged in.
 
@@ -42,17 +42,30 @@ Your data lives in **your own Supabase project**, and only you can see it once y
   - **Ctrl+V / Cmd+V** anywhere in the app (not inside a text field)
   - the **“Paste or type a link…”** field at the top of the Link Vault (pasting into it opens the form right away)
   - the **“Save to Vault”** iPhone Shortcut in the Share sheet (set-up below), or on Android **Share → Stash**
-- Each link has a **title** (filled in automatically when possible), **notes**, **tags** (the same tags and tag groups as your characters), **favorite**, **status** (*To watch* / *Done*) and optional **characters** it belongs to. Those links also show up on the character's page (with an **Add link** button there).
+- Each link has a **title** (filled in automatically when possible), a **folder**, **notes**, **Vault tags**, **favorite**, **status** (*To watch* / *Done*) and optional **characters** it belongs to. Those links also show up on the character's page (with an **Add link** button there).
+
+#### Folders
+- Folders can have subfolders, **up to 3 levels** (e.g. *Art › Tutorials › Anatomy*). A 4th level is refused with a message. Every link is in exactly one folder, or in **Unsorted** (no folder).
+- **On a computer**: the folder tree is on the left — *All links* and *Unsorted* at the top, then your folders with the number of links in each (including subfolders). Click ▸ to open or close a folder. The folder's contents are on the right.
+- **On a phone**: you go *into* folders. The path at the top (*Vault › Art › Tutorials*) is tappable; **‹** goes up one level (`Esc` does the same on a computer). Subfolders are listed first, then the links.
+- **Folder options** (the **⋮** button next to the folder's name): *New subfolder*, *Rename*, *Move to…* (into another folder or to the top level — you can't move a folder into itself or make it deeper than 3 levels), *Move up* / *Move down* (to change the order), *Delete folder…*.
+- **Deleting a folder never deletes links.** Its links and subfolders move up one level (to the folder above it, or to the top level / Unsorted). You're told first how many items will move. If a subfolder's name is already taken where it moves to, it gets “(2)” added.
+- **Moving links**: press **Select** (above the links, in Grid or List), tap the links you want, then **Move to folder…** and pick a folder. You can also use **Move…** on a link's page, or the **Folder** field in *Edit*.
+- **Adding a link**: the *Add link* form has a **Folder** field. It starts on the folder you're looking at; from *All links* it starts on the last folder you used in this browser. Links from the iPhone Shortcut, Android Share and Ctrl+V always start in **Unsorted** (you can still pick a folder before saving).
+- **Search and filters** work inside the folder you're in *and its subfolders*. In *All links* they search everything. Results show which folder each link is in (e.g. *Art › Tutorials*).
+
+#### Vault tags
+- The Link Vault has **its own tag list**, separate from character tags: the tag box, filters and suggestions in the Vault only show Vault tags, and the Characters tag box, **Tags** page, tag groups and counts only show character tags. A tag with the same name can exist on both sides (e.g. *Sci-fi*); they are simply two separate tags.
+- **Tags** (top of the Link Vault, or `T`) opens **Manage Vault tags**: rename, merge and delete. Vault tags have no groups.
 - **YouTube** (normal, `youtu.be`, Shorts and live links): the thumbnail comes straight from the video, and it **plays inside the app** with YouTube's privacy-enhanced player (youtube-nocookie.com).
 - **X, Instagram, Reddit**: opening a link shows the post with the platform's **official embed**, loaded only when you open it.
 - **Other websites** get their preview picture and title from the **link-preview** Edge Function (set-up below). Each link is looked up only once and the result is saved.
 - No picture (common for X and Instagram)? You get a clean placeholder card with the platform, your title and the domain — and **Set thumbnail** lets you upload or paste a picture (a screenshot works well). It's shrunk like character images.
 - **Duplicate warning**: if a link is already saved you'll be told, even if it looks different (`youtu.be/…` vs `youtube.com/watch?v=…`, `www.`, `http`/`https`, and tracking bits like `utm_…`, `si`, `igsh`, `fbclid` are ignored). Tracking bits are also removed from the address you save.
 - **Grid / List**, **sort**, **search** (title, site, notes, tags), and **filters** for status, favorites, platform and tags.
-- The **Tags page** shows how many characters *and* links use each tag; renaming, merging and deleting tags updates both.
-- The **ZIP backup** now also contains a `Link Vault` folder: `links.json` (every link with its notes, tags, status and characters) and your custom thumbnails.
+- The **ZIP backup** also contains a `Link Vault` folder: `links.json` (every link with its folder path, notes, Vault tags, status and characters), `folders.json` (every folder with its full path, in your order), `vault-tags.json`, and your custom thumbnails.
 
-Handy shortcuts on a computer: `/` jumps to search, `N` makes a new character (or a new link in the Link Vault), `R` opens a random one, `T` opens Tags, `H` goes home, `Esc` goes back.
+Handy shortcuts on a computer: `/` jumps to search, `N` makes a new character (or a new link in the Link Vault), `R` opens a random one, `T` opens Tags (Vault tags when you're in the Link Vault), `H` goes home, `Esc` goes back (in the Link Vault: up one folder).
 Pasting or dropping an image on the board starts a new character with it.
 
 ---
@@ -86,8 +99,19 @@ New features sometimes need extra database pieces. They live in [`supabase/migra
 | --- | --- |
 | `20261104_01_tags_source_duplicates.sql` | Tag & tag-group tables (your existing tags are moved over automatically), the *Source* field, image fingerprints for the duplicate warning |
 | `20261104_02_link_vault.sql` | The **Link Vault**: tables for links, their tags and their characters (each with Row Level Security, so only you see your links), and an update so merging tags also moves links. Nothing existing is changed or deleted |
+| `20261116_01_vault_folders_tags.sql` | **Folders** for the Link Vault and the Vault's **own tag list** (both with Row Level Security). Also converts your existing links once — see below |
 
-> Until `20261104_02_link_vault.sql` has been run, the Link Vault shows *“One quick setup step”* — your characters keep working normally.
+> Until the newest file has been run, the Link Vault shows *“One quick setup step”* — your characters keep working normally.
+
+**What `20261116_01_vault_folders_tags.sql` does to your existing links (one time only):**
+Until now, characters and links shared one tag list. This file gives the Link Vault its own folders and tags, and sorts your links in for you:
+1. Each link goes into a **folder named after one of its tags** — the tag that's used on the most links (if two are equally popular, the alphabetically first). Example: a link tagged *Tutorial* and *Sci-fi*, where *Tutorial* is on more links, goes into the folder *Tutorial*.
+2. The link's **other tags** (*Sci-fi* in the example) are copied to the new **Vault tags**, so nothing is lost.
+3. Links with no tags go to **Unsorted**. Folders are only made for tags that end up holding at least one link, all at the top level, in alphabetical order.
+4. Links stop using the old shared tags. A shared tag that **no character uses** any more is then deleted; tags your characters still use stay exactly as they are, and **tag groups are not touched**.
+5. **No link and no character is ever deleted.** Running the file a second time changes nothing.
+
+> **Make a backup first** (⋮ menu → *Download backup (ZIP)*) before running it, just in case.
 
 > If the app ever says *"The database needs an update"*, a file in that folder hasn't been run yet.
 
@@ -157,7 +181,7 @@ This adds **Save to Vault** to the Share sheet in YouTube, X, Instagram, Reddit,
 8. Search **Open URLs**, tap it. It should say *“Open **Text**”*.
 9. Tap **Done** (top right).
 
-**Use it:** in any app, tap **Share** → scroll the row of apps or actions → **Save to Vault** (if you don't see it: **Edit Actions…** at the bottom of the list → add it to *Favorites*). Safari opens the Link Vault with the *Add link* form filled in — check it and tap **Save**. The first time, iOS asks whether the shortcut may open the page: tap **Allow**.
+**Use it:** in any app, tap **Share** → scroll the row of apps or actions → **Save to Vault** (if you don't see it: **Edit Actions…** at the bottom of the list → add it to *Favorites*). Safari opens the Link Vault with the *Add link* form filled in — check it and tap **Save**. It's saved to **Unsorted** unless you choose another **Folder** in the form first. The first time, iOS asks whether the shortcut may open the page: tap **Allow**.
 
 > **Log in once in Safari.** The shortcut opens Safari, and iPhone keeps an app you added to the Home Screen separate from Safari — so you need to be logged in in Safari too (once; it remembers you). If you're not logged in, the link waits for you: log in and the form appears (within 30 minutes).
 >
@@ -207,18 +231,20 @@ Copy an image in another app, open Stash and tap **Paste** (on the board, in *Ne
 - `npm run build` creates the production site in `dist/`.
 - The deploy workflow lives in `.github/workflows/deploy.yml`.
 - Database / storage / security rules: `supabase/setup.sql`, then the files in `supabase/migrations/`.
-- `npm test` runs the unit tests (name matching, tag rules, link parsing / duplicate keys, and the Edge Function's safety checks).
+- `npm test` runs the unit tests (name matching, tag rules, link parsing / duplicate keys, folder rules, the tag → folder conversion, and the Edge Function's safety checks).
+  The database test (`tests/migration.test.js`) runs every SQL file against a throwaway PostgreSQL database — including the conversion, twice. It only runs when you point it at a PostgreSQL server: `STASH_PG_URL=postgresql://postgres:postgres@localhost:5432/postgres npm test` (otherwise it's skipped).
 
 | File | What it is |
 | --- | --- |
 | `src/main.js` | App shell: routing, hub bar, section headers, paste & drop handling, `?add=` links, login state |
 | `src/sections.js` | The list of hub sections (add an entry here to add a section) |
+| `src/folders.js` | Link Vault folder rules (paths, 3-level limit, move/delete behaviour) and the JavaScript copy of the tag → folder conversion |
 | `src/links.js` | Link helpers: finding a URL in text, platforms, YouTube IDs, embeds, tracking-parameter clean-up, duplicate keys |
 | `src/previews.js` | Talks to the `link-preview` Edge Function and saves the results |
 | `supabase/functions/link-preview/index.ts` | The Edge Function (Open Graph previews, with the safety checks) |
 | `src/api.js` | Everything that talks to Supabase |
 | `src/compress.js` | In-browser image resizing/compression |
-| `src/views/` | The screens: login, home, grid, detail, tags, Link Vault (`vault.js`, `link-detail.js`, `add-link.js`, `embeds.js`), dialogs, lightbox |
+| `src/views/` | The screens: login, home, grid, detail, tags, Link Vault (`vault.js`, `folder-ui.js`, `vault-tags.js`, `link-detail.js`, `add-link.js`, `embeds.js`), dialogs, lightbox |
 | `src/text.js` | Tag clean-up and the "similar name" matching |
 | `src/hash.js`, `src/paste.js`, `src/share.js` | Duplicate-image check, Paste button, Android share target |
 | `public/sw.js`, `public/manifest.webmanifest` | What makes it installable (PWA) |

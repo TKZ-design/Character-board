@@ -1,5 +1,5 @@
 import { h, icon } from '../ui.js';
-import { state, tagByName, groupById, tagUseCounts } from '../state.js';
+import { CHARACTER_TAGS } from '../state.js';
 import { cleanTag, tagKey } from '../text.js';
 
 let uid = 0;
@@ -8,8 +8,10 @@ let uid = 0;
  * Chip-style tag editor with autocomplete from existing tags (showing their
  * group). Typing a new name offers "Create …". Matching is case-insensitive:
  * "mage " picks the existing "Mage". Returns { el, value() } — value() is a list of names.
+ * `source` says which tag list to suggest from: CHARACTER_TAGS (default) or VAULT_TAGS.
  */
-export function tagInput(initial = []) {
+export function tagInput(initial = [], source = CHARACTER_TAGS) {
+  const byName = (name) => source.list().find((t) => tagKey(t.name) === tagKey(name));
   const tags = [];
   const id = `tag-input-${++uid}`;
   const chips = h('span.chips');
@@ -19,6 +21,7 @@ export function tagInput(initial = []) {
     role: 'combobox', 'aria-autocomplete': 'list', 'aria-expanded': 'false', 'aria-controls': list.id, 'aria-label': 'Add tag',
   });
   let options = [];   // [{ name, create }]
+  let counts = new Map();
   let active = -1;
 
   const has = (name) => tags.some((t) => tagKey(t) === tagKey(name));
@@ -27,7 +30,7 @@ export function tagInput(initial = []) {
     for (const part of String(raw).split(',')) {
       const clean = cleanTag(part);
       if (!clean || has(clean)) continue;
-      tags.push(tagByName(clean)?.name ?? clean); // reuse the existing spelling
+      tags.push(byName(clean)?.name ?? clean); // reuse the existing spelling
     }
     input.value = '';
     close();
@@ -43,13 +46,13 @@ export function tagInput(initial = []) {
   function suggest() {
     const q = tagKey(input.value);
     if (!q) { close(); return; }
-    const counts = tagUseCounts();
-    const pool = state.tagList.filter((t) => !has(t.name));
+    counts = source.counts();
+    const pool = source.list().filter((t) => !has(t.name));
     const starts = pool.filter((t) => tagKey(t.name).startsWith(q));
     const contains = pool.filter((t) => !tagKey(t.name).startsWith(q) && tagKey(t.name).includes(q));
     const byUse = (a, b) => (counts.get(b.id) || 0) - (counts.get(a.id) || 0) || a.name.localeCompare(b.name);
     options = [...starts.sort(byUse), ...contains.sort(byUse)].slice(0, 8).map((t) => ({ name: t.name, tag: t }));
-    const exists = state.tagList.some((t) => tagKey(t.name) === q) || has(input.value);
+    const exists = source.list().some((t) => tagKey(t.name) === q) || has(input.value);
     if (!exists) options.push({ name: cleanTag(input.value), create: true });
     active = options.length ? 0 : -1;
     render();
@@ -57,7 +60,7 @@ export function tagInput(initial = []) {
 
   function render() {
     list.replaceChildren(...options.map((o, i) => {
-      const group = o.tag ? groupById(o.tag.group_id)?.name : null;
+      const hint = o.tag ? source.hint(o.tag, counts) : null;
       return h(`li.tag-option${i === active ? '.active' : ''}${o.create ? '.create' : ''}`, {
         id: `${id}-opt-${i}`, role: 'option', 'aria-selected': String(i === active),
         onpointerdown: (e) => e.preventDefault(), // keep focus in the input
@@ -65,7 +68,7 @@ export function tagInput(initial = []) {
       },
         o.create
           ? [h('span.tag-option-name', icon('plus'), h('span', 'Create “', h('strong', o.name), '”')), h('span.tag-option-group', 'New tag')]
-          : [h('span.tag-option-name', o.name), h('span.tag-option-group', group || 'Ungrouped')]);
+          : [h('span.tag-option-name', o.name), h('span.tag-option-group', hint)]);
     }));
     const open = options.length > 0;
     list.hidden = !open;

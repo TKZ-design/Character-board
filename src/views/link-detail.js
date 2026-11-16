@@ -1,7 +1,10 @@
 import { h, icon, toast, errorToast, confirmDialog, safeHref } from '../ui.js';
 import {
-  api, state, findLink, findChar, coverOf, linkTitle, tagsOf, tagNamesOf, saveLinkTags, saveLinkCharacters, patchLink, clearLinkFilters,
+  api, state, findLink, findChar, coverOf, linkTitle, vaultTagsOf, vaultTagNamesOf, saveLinkTags, saveLinkCharacters, patchLink, clearLinkFilters,
+  VAULT_TAGS, linkFolderId, moveLinksTo,
 } from '../state.js';
+import { folderPath, pathText } from '../folders.js';
+import { folderHref, folderSelect, pickFolder } from './folder-ui.js';
 import { platformLabel, domainOf, parseUrl, cleanUrl, platformOf, findDuplicates } from '../links.js';
 import { tagInput } from './tag-input.js';
 import { charPicker } from './char-picker.js';
@@ -22,7 +25,7 @@ export function renderLinkDetail(root, id) {
   if (!l) {
     root.replaceChildren(h('div.empty',
       h('h2', state.linksReady === null ? 'Loading…' : 'Link not found'),
-      h('a.btn', { href: '#/links' }, 'Back to the Link Vault')));
+      h('a.btn', { href: state.lastVaultHash || '#/links' }, 'Back to the Link Vault')));
     return;
   }
   const setCover = async (files) => { const f = files[0]; if (f && await setLinkCover(l, f)) rerender(); };
@@ -84,9 +87,10 @@ function infoView(l) {
     h('div.row.link-actions',
       href ? h('a.btn.primary', { href, target: '_blank', rel: 'noopener noreferrer' }, `Open on ${l.platform === 'web' ? domainOf(l.url) : platformLabel(l.platform)}`, icon('external')) : null,
       statusSwitch(l)),
-    tagsOf(l).length
-      ? h('div.chips.inline', tagsOf(l).map((t) => h('a.chip', {
-          href: '#/links', onclick: () => { clearLinkFilters(); state.linkFilter.tags.add(t.id); },
+    folderLine(l),
+    vaultTagsOf(l).length
+      ? h('div.chips.inline', vaultTagsOf(l).map((t) => h('a.chip', {
+          href: '#/links', title: `Show all links tagged ${t.name}`, onclick: () => { clearLinkFilters(); state.linkFilter.tags.add(t.id); },
         }, t.name)))
       : null,
     l.description?.trim() ? [h('h4.label', 'From the site'), h('div.notes.muted', l.description)] : null,
@@ -112,6 +116,29 @@ function infoView(l) {
   );
 }
 
+/** "Folder: Vault › Art › Tutorials" with a quick Move… button. */
+function folderLine(l) {
+  const trail = folderPath(state.folders, linkFolderId(l));
+  return h('div.link-folder',
+    h('span.label', 'Folder'),
+    h('nav.breadcrumb.inline-crumbs', { 'aria-label': 'Folder' },
+      h('ol',
+        trail.length
+          ? trail.map((f) => h('li', h('a', { href: folderHref(f.id) }, f.name)))
+          : h('li', h('a', { href: folderHref('unsorted') }, 'Unsorted')))),
+    h('button.btn.small-btn', {
+      type: 'button',
+      onclick: async () => {
+        const target = await pickFolder({ title: `Move “${linkTitle(l)}” to…`, current: linkFolderId(l) });
+        if (target === undefined) return;
+        try {
+          if (await moveLinksTo([l], target)) toast(`Moved to ${pathText(state.folders, target)}`, { type: 'ok', timeout: 2000 });
+          rerender();
+        } catch (e) { errorToast(e); }
+      },
+    }, 'Move…'));
+}
+
 function editForm(l) {
   const url = h('input', { type: 'url', inputmode: 'url', value: l.url, required: true, autocapitalize: 'off', spellcheck: false, maxlength: 2048 });
   const title = h('input', { value: l.title || '', maxlength: 300, placeholder: 'Title' });
@@ -119,7 +146,8 @@ function editForm(l) {
   description.value = l.description || '';
   const notes = h('textarea', { rows: 6, placeholder: 'Why you saved it, what to look for…' });
   notes.value = l.notes || '';
-  const tags = tagInput(tagNamesOf(l));
+  const tags = tagInput(vaultTagNamesOf(l), VAULT_TAGS);
+  const folder = folderSelect(linkFolderId(l));
   const chars = charPicker(l.character_ids || []);
   const err = h('p.field-error', { role: 'alert', hidden: true });
   const save = h('button.btn.primary', { type: 'submit' }, 'Save');
@@ -136,7 +164,7 @@ function editForm(l) {
       }
       save.disabled = true;
       try {
-        const patch = { url: cleanUrl(u), title: title.value.trim(), description: description.value.trim(), notes: notes.value, platform: platformOf(u) };
+        const patch = { url: cleanUrl(u), title: title.value.trim(), description: description.value.trim(), notes: notes.value, platform: platformOf(u), folder_id: folder.value() };
         if (patch.url !== l.url) Object.assign(patch, { preview_status: 'pending', thumbnail_url: null, site_name: '' });
         Object.assign(l, await api.updateLink(l.id, patch), { tag_ids: l.tag_ids, character_ids: l.character_ids });
         await saveLinkTags(l, tags.value());
@@ -151,6 +179,7 @@ function editForm(l) {
   },
     h('label.field', h('span', 'Link'), url), err,
     h('label.field', h('span', 'Title'), title),
+    h('label.field', h('span', 'Folder'), folder.el),
     h('label.field', h('span', 'Description ', h('em.optional', 'from the site')), description),
     h('label.field', h('span', 'Notes'), notes),
     h('label.field', h('span', 'Tags'), tags.el),
@@ -188,6 +217,6 @@ async function removeLink(l) {
     await api.deleteLink(l);
     state.links = state.links.filter((x) => x.id !== l.id);
     toast('Link deleted', { type: 'ok' });
-    go('#/links');
+    go(state.lastVaultHash || '#/links');
   } catch (e) { errorToast(e); }
 }

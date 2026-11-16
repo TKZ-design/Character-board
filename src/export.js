@@ -1,4 +1,5 @@
-import { api, state, tagsOf, groupById, findChar, linksOf, linkTitle } from './state.js';
+import { api, state, tagsOf, groupById, findChar, linksOf, linkTitle, vaultTagsOf, linkFolderId, vaultTagCounts } from './state.js';
+import { folderPath, flattenTree, folderCounts, childrenOf } from './folders.js';
 import { toast, errorToast } from './ui.js';
 
 const safe = (s) => (s || 'untitled').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) || 'untitled';
@@ -6,7 +7,7 @@ const ext = (path) => (path.match(/\.(\w+)$/) || [, 'webp'])[1];
 
 /**
  * Download everything as a ZIP: one folder of images per character + characters.json,
- * and a "Link Vault" folder with links.json + your custom link thumbnails.
+ * and a "Link Vault" folder with links.json, folders.json, vault-tags.json and your custom link thumbnails.
  */
 export async function exportZip() {
   const chars = state.characters;
@@ -55,6 +56,8 @@ export async function exportZip() {
     }
 
     // ----- Link Vault -----
+    const namesOf = (id) => folderPath(state.folders, id).map((f) => f.name);
+    const pathOf = (id) => namesOf(id).join(' / ');
     const linkMeta = links.map((l, i) => {
       const cover = l.cover_path ? `Link Vault/thumbnails/${String(i + 1).padStart(3, '0')} ${safe(linkTitle(l)).slice(0, 40)}.${ext(l.cover_path)}` : null;
       if (cover) {
@@ -73,8 +76,9 @@ export async function exportZip() {
         status: l.status === 'done' ? 'Done' : 'To watch',
         favorite: !!l.is_favorite,
         notes: l.notes || '',
-        tags: tagsOf(l).map((tg) => tg.name),
-        tag_groups: Object.fromEntries(tagsOf(l).map((tg) => [tg.name, groupById(tg.group_id)?.name || null])),
+        folder: pathOf(linkFolderId(l)),           // "Art / Tutorials", or "" for Unsorted
+        folder_path: namesOf(linkFolderId(l)),     // ["Art", "Tutorials"], or [] for Unsorted
+        tags: vaultTagsOf(l).map((tg) => tg.name), // Vault tags (separate from character tags)
         characters: (l.character_ids || []).map(findChar).filter(Boolean).map((c) => c.name),
         preview_image: l.thumbnail_url || null,
         thumbnail: cover,
@@ -99,6 +103,32 @@ export async function exportZip() {
         exported_at: new Date().toISOString(),
         count: linkMeta.length,
         links: linkMeta,
+      }, null, 2));
+      const counts = folderCounts(state.folders, links);
+      const own = (id) => links.filter((l) => linkFolderId(l) === id).length;
+      zip.file('Link Vault/folders.json', JSON.stringify({
+        app: 'Stash — Link Vault',
+        exported_at: new Date().toISOString(),
+        count: state.folders.length,
+        note: 'Folders in display order. "path" includes the folder itself; links.json says which folder each link is in.',
+        folders: flattenTree(state.folders).map(({ folder: f, depth }) => ({
+          name: f.name,
+          path: pathOf(f.id),
+          path_parts: namesOf(f.id),
+          parent: f.parent_id ? pathOf(f.parent_id) : null,
+          depth,
+          position: childrenOf(state.folders, f.parent_id).findIndex((x) => x.id === f.id),
+          links_here: own(f.id),
+          links_including_subfolders: counts.get(f.id) || 0,
+        })),
+        unsorted_links: own(null),
+      }, null, 2));
+      const tagCounts = vaultTagCounts();
+      zip.file('Link Vault/vault-tags.json', JSON.stringify({
+        app: 'Stash — Link Vault',
+        exported_at: new Date().toISOString(),
+        count: state.vaultTags.length,
+        tags: [...state.vaultTags].sort((a, b) => a.name.localeCompare(b.name)).map((t) => ({ name: t.name, links: tagCounts.get(t.id) || 0 })),
       }, null, 2));
     }
 

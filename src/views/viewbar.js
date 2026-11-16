@@ -4,7 +4,7 @@ import { h, icon } from '../ui.js';
  * The row above a collection: result count on the left, Sort + Grid/List on the right.
  * `onSort(sort)` / `onView(view)` save the choice and re-render.
  */
-export function viewBar({ text, sort, view, onSort, onView, nameLabel = 'Name' }) {
+export function viewBar({ text, sort, view, onSort, onView, nameLabel = 'Name', extra = null }) {
   const labels = { added: 'Date added', name: nameLabel, updated: 'Last updated' };
   const select = h('select.sort-select', { 'aria-label': 'Sort by', onchange: (e) => onSort(e.target.value) },
     Object.entries(labels).map(([value, label]) => h('option', { value, selected: value === sort }, label)));
@@ -16,6 +16,7 @@ export function viewBar({ text, sort, view, onSort, onView, nameLabel = 'Name' }
   return h('div.viewbar',
     h('p.result-count', text),
     h('div.viewbar-tools',
+      extra,
       h('label.sort', h('span.search-label', 'Sort'), select),
       h('div.view-toggle', { role: 'group', 'aria-label': 'View' }, viewBtn('grid', 'Grid'), viewBtn('list', 'List'))));
 }
