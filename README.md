@@ -28,11 +28,12 @@ Your data lives in **your own Supabase project**, and only you can see it once y
 - Images are **shrunk in your browser before uploading** (max 2000 px, WebP or JPEG), so they take up less storage
 - **Masonry grid** with **search by name or source** and **filtering by one or more tags** (grouped like on the Tags page)
 - **Detail view** with a gallery, full-size zoom (click the image, use arrow keys or swipe), editing and delete
+- **Reference link** on an image (optional): the web page an image came from. Hover an image in a character's gallery (always visible on phones) and press the **chain-link icon** to add, change or remove it. Images that have one show an **Open reference** button (on the image, and in the full-size view) that opens the page in a new tab; images without one show nothing extra. Right after adding images, the *“Added … images”* message has an **Add reference link** button to give all of them one link in one go. This is separate from the character's **Source** field and its *Source links*
 - **Cover image**: hover an image in a character's gallery (always visible on phones) and press the picture icon to make it the image shown on the grid
 - **Favorites**: star characters (on the card or in the detail view) and use the **★ Favorites** button to show only those
 - **🎲 Random**: jumps to a random character — it respects your current search, tag and favorites filters (shortcut: `R`)
 - **Compare**: press **Compare** on the board, tap 2 or 3 characters, then **Compare** again to see them side by side
-- **Backup**: **⋮ menu → Download backup (ZIP)** saves everything — one folder of full-size images per character, plus a `characters.json` file with all names, tags, notes, links and favorites
+- **Backup**: **⋮ menu → Download backup (ZIP)** saves everything — one folder of full-size images per character, plus a `characters.json` file with all names, tags, notes, links, favorites and each image's reference link (`image_references`)
 - Dark mode by default, with a light mode toggle (☀️/🌙 button, your choice is remembered)
 - **Installable** on desktop and phone like a normal app
 
@@ -41,7 +42,8 @@ Your data lives in **your own Supabase project**, and only you can see it once y
   - the **Paste link** button (reads the link on your clipboard — on iPhone, tap the little *Paste* bubble that appears)
   - **Ctrl+V / Cmd+V** anywhere in the app (not inside a text field)
   - the **“Paste or type a link…”** field at the top of the Link Vault (pasting into it opens the form right away)
-  - the **“Save to Vault”** iPhone Shortcut in the Share sheet (set-up below), or on Android **Share → Stash**
+  - the **“Save to Stash”** iPhone Shortcut in the Share sheet: **one tap, saved** — Safari doesn't open, a banner says *Saved ✓* or *Already saved* (set-up in step 6 below)
+  - the older **“Save to Vault”** iPhone Shortcut (opens the app with the link filled in, so you can pick a folder or add notes first — step 5 below), or on Android **Share → Stash**
 - Each link has a **title** (filled in automatically when possible), a **folder**, **notes**, **Vault tags**, **favorite**, **status** (*To watch* / *Done*) and optional **characters** it belongs to. Those links also show up on the character's page (with an **Add link** button there).
 
 #### Folders
@@ -72,7 +74,7 @@ Pasting or dropping an image on the board starts a new character with it.
 
 ## One-time setup (about 10 minutes)
 
-You need to do three things: **1)** set up the database, **2)** tell Supabase where your app lives, **3)** turn on GitHub Pages. For the Link Vault there are two more: **4)** deploy the link-preview function (for website thumbnails) and **5)** create the iPhone “Save to Vault” shortcut.
+You need to do three things: **1)** set up the database, **2)** tell Supabase where your app lives, **3)** turn on GitHub Pages. For the Link Vault there are two more: **4)** deploy the link-preview function (for website thumbnails) **5)** create the iPhone “Save to Vault” shortcut and/or **6)** set up one-tap **“Save to Stash”**.
 
 ### 1. Create the database (Supabase SQL Editor)
 
@@ -100,6 +102,7 @@ New features sometimes need extra database pieces. They live in [`supabase/migra
 | `20261104_01_tags_source_duplicates.sql` | Tag & tag-group tables (your existing tags are moved over automatically), the *Source* field, image fingerprints for the duplicate warning |
 | `20261104_02_link_vault.sql` | The **Link Vault**: tables for links, their tags and their characters (each with Row Level Security, so only you see your links), and an update so merging tags also moves links. Nothing existing is changed or deleted |
 | `20261116_01_vault_folders_tags.sql` | **Folders** for the Link Vault and the Vault's **own tag list** (both with Row Level Security). Also converts your existing links once — see below |
+| `20261116_02_image_reference_url.sql` | The optional **Reference link** on character images (one new empty field; only `http://` / `https://` addresses up to 2000 characters are accepted). Nothing existing is changed or deleted, and the existing privacy rules cover it |
 
 > Until the newest file has been run, the Link Vault shows *“One quick setup step”* — your characters keep working normally.
 
@@ -187,6 +190,95 @@ This adds **Save to Vault** to the Share sheet in YouTube, X, Instagram, Reddit,
 >
 > Inside the Home Screen app you can still use **Paste link**: in the other app tap **Share → Copy link**, then open the app and tap **Paste link**.
 
+### 6. “Save to Stash”: save a link in one tap from the iPhone Share sheet (~10 minutes)
+
+With this, **Share → Save to Stash** saves the link straight to **Unsorted** in your Link Vault and shows a banner: **Saved ✓**, **Already saved**, or a short reason why not. Safari never opens and you don't confirm anything. The title and thumbnail are looked up for you (that can take a few seconds before the banner appears).
+
+It works through a second small server-side helper, **quick-save**. Because the Shortcut can't log in, the helper recognises you by a **personal secret key** instead. Four parts: **(a)** two secrets, **(b)** deploy the function, **(c)** build the Shortcut, and — only if needed — **(d)** change the key.
+
+> The old **Save to Vault** shortcut (step 5) keeps working. Keep it as a fallback, and for links where you want to choose a folder or add notes right away.
+
+#### (a) Create the two secrets (Supabase dashboard)
+
+**First, make a strong key** (on your laptop):
+1. Open any web page in Chrome, Edge or Firefox and press **F12** (Mac: **⌥ Option + ⌘ Command + J**). A panel opens; click its **Console** tab.
+2. Click in the empty line at the bottom, paste this and press **Enter** (if the browser first asks you to type *allow pasting*, do that and paste again):
+   `crypto.randomUUID() + crypto.randomUUID()`
+3. A long line of letters, digits and dashes appears between quote marks. That's your key: copy it **without the quote marks** and keep the tab open for a moment. It's made on your own computer and isn't sent anywhere.
+   *(No laptop at hand? Any password manager's generator works too: at least 40 characters, letters and digits only. The function refuses keys shorter than 20 characters.)*
+
+**Then find your user ID:**
+4. In Supabase, open your project → **Authentication** (left sidebar) → **Users**.
+5. Find the row with your email address and copy the value in the **UID** column (click it, or use the **⋯** menu at the end of the row → **Copy user ID**). It looks like `1a2b3c4d-1234-5678-9abc-1a2b3c4d5e6f`.
+
+**Now store both:**
+6. Click **Edge Functions** in the left sidebar → **Secrets**.
+7. Under *Add new secrets*: in **Name** type exactly `QUICK_SAVE_KEY`, in **Value** paste the key from step 3.
+8. Click **Add another**: **Name** `OWNER_USER_ID`, **Value** your user ID from step 5.
+9. Click **Save**. Both names now appear in the list (the values are hidden; that's normal).
+
+> These two values live **only** in Supabase (and the key also inside your Shortcut). Never put them in this repository, in an issue, or in a chat. The file [`.env.example`](.env.example) lists their names with fake values, as a reminder of what exists.
+
+#### (b) Deploy the function (same way as link-preview)
+
+1. In Supabase click **Edge Functions** → **Deploy a new function** → **Via Editor**.
+2. Select all the example code in the editor and delete it.
+3. Open [`supabase/functions/quick-save/index.ts`](supabase/functions/quick-save/index.ts) here on GitHub, click **Copy raw file** (two overlapping squares, top-right), and paste it into the editor.
+4. At the bottom, set the **function name** to exactly: `quick-save`
+5. Click **Deploy function** and wait for the green *“Successfully deployed”* message.
+6. **Switch off the login check for this one function:** open the **quick-save** function → **Details** (or **Settings**) tab → turn **off** the switch called **“Verify JWT with legacy secret”** (older dashboards: *“Enforce JWT verification”*) → **Save**.
+
+**Why that switch must be off, and why that's safe here:** when it's on, Supabase only lets *logged-in users* call the function — and the Shortcut has no login, so every save would be refused. With it off, the function does its own check instead: it only acts when the request carries your secret key (step a), and it compares the key in a way that doesn't leak hints. Without the right key the answer is always the same “request refused”, and nothing is read or saved. Even with the key, the function can do exactly one thing: add a link to *your* Unsorted. It can't read, change or delete anything. Leave the switch **on** for `link-preview`; this is only for `quick-save`.
+
+> **After every later re-deploy** (Edge Functions → **quick-save** → **Code** → paste the new version → **Deploy**), look at that switch again: some dashboard versions turn it back on.
+
+#### (c) Build the “Save to Stash” Shortcut (iPhone)
+
+1. Open the **Shortcuts** app → **Shortcuts** tab → tap **+** (top right).
+2. Tap the name at the top (*“New Shortcut”*) → **Rename** → type `Save to Stash` → **Done**.
+3. Tap the **ⓘ** button at the bottom (or the name at the top → **Details**) and turn on **Show in Share Sheet**. Tap **Done**.
+   In the block *“Receive **Any** input from **Share Sheet**”* that appears at the top, tap **Any** and choose only **URLs**, **Text** and **Safari web pages**. Next to *“If there's no input”*, choose **Get Clipboard**.
+4. Tap **Search Actions**, search **Get URLs from Input**, and tap it. It should say *“Get URLs from **Shortcut Input**”*.
+5. Search **Get Item from List**, tap it. It should say *“Get **First Item** from **URLs**”*.
+6. Search **Get Contents of URL**, tap it. Then set it up:
+   - Tap the blue **URL** word in the action (it may be pre-filled with *Item from List* — delete that) and type exactly:
+     `https://imorekpkzucpjpplyabq.supabase.co/functions/v1/quick-save`
+   - Tap the small **arrow (›)** in the action to show more options.
+   - **Method**: choose **POST**.
+   - **Headers**: tap **Add new header**. **Key**: `x-stash-key` — **Value**: paste your secret key from step (a).
+   - **Request Body**: choose **JSON**. Tap **Add new field** → **Text**. **Key**: `url` — tap **Value**, then pick **Item from List** from the variables bar above the keyboard.
+7. Search **Show Notification**, tap it. It should say *“Show notification **Contents of URL**”*. If it says something else (like *Hello World*), tap that text, delete it, and pick **Contents of URL** from the variables bar.
+8. Tap **Done** (top right).
+
+**Use it:** in any app tap **Share** → **Save to Stash** (if you don't see it: **Edit Actions…** at the bottom of the list → add it to *Favorites*). A banner appears with the result. The first time, iOS asks whether the shortcut may connect to `imorekpkzucpjpplyabq.supabase.co` and may send notifications: choose **Always Allow** / **Allow**.
+
+The link is in **Unsorted**. If Stash was already open, close and reopen it (or reload the page) to see it.
+
+**Try it out:**
+- Share any web page → banner **Saved ✓** → it's in Link Vault → Unsorted, with its title and picture.
+- Share the same page again → banner **Already saved**, and no second copy appears.
+
+| The banner says | What to do |
+| --- | --- |
+| `Not saved: request refused` | The key in the Shortcut and the `QUICK_SAVE_KEY` secret aren't identical (check for a missing character or an extra space), the secret is missing or shorter than 20 characters, or the header name isn't exactly `x-stash-key` |
+| Something technical with `401`, `Missing authorization header` or `Invalid JWT` | The switch from step (b) 6 is (back) on. Turn it off |
+| `Not saved: the OWNER_USER_ID secret is missing…` | Add or fix that secret — step (a) 5 and 8 |
+| `Not saved: that is not a web link…` | What you shared didn't contain a normal `http://` or `https://` address |
+| `Not saved: Stash could not be reached…` | Try again in a moment. If it keeps happening, check that the update files in step 1b have all been run |
+| Nothing, or `404` / `not found` | The function name isn't exactly `quick-save`, or the address in step 6 has a typo |
+
+> **Keep the key to yourself.** It's stored inside the Shortcut, so don't share this Shortcut with anyone (Share → *Copy iCloud Link* would include the key). To give someone the recipe, send them this README instead.
+
+#### (d) If the key ever leaks: change it (2 minutes)
+
+Anyone who has the key could add links to your Unsorted (nothing more — they can't see or delete anything). If you think someone has it:
+1. Make a new key — the three steps at the start of (a).
+2. Supabase → **Edge Functions** → **Secrets** → add a secret with the **same name** `QUICK_SAVE_KEY` and the new value → **Save**. It replaces the old one. From that moment the old key is refused.
+3. On your iPhone: **Shortcuts** → tap **⋯** on **Save to Stash** → in *Get Contents of URL* → **Headers** → replace the value of `x-stash-key` with the new key → **Done**.
+4. Share a link to test: **Saved ✓** means the new key works. *(If the old key still seems to work after a minute, deploy the function once more — step (b) “After every later re-deploy”.)*
+
+To switch one-tap saving off entirely: delete the `QUICK_SAVE_KEY` secret (or the `quick-save` function). The function then refuses everyone.
+
 ---
 
 ## Installing the app
@@ -219,6 +311,7 @@ Copy an image in another app, open Stash and tap **Paste** (on the board, in *Ne
 - The code in this repository is public (that's how free GitHub Pages works), but it contains **no data**.
 - The "publishable key" in `src/config.js` is designed to be public. By itself it can't read anything — every request is checked by the Row Level Security rules from `setup.sql`, which only allow a logged-in user to touch rows and files they own.
 - Images are stored in a **private** bucket. The app shows them using temporary links that expire after one hour. Custom link thumbnails are stored there too.
+- The **quick-save** function (one-tap saving from the iPhone) is the only part that works without a login. It only acts on a request that carries your personal secret key, which is stored as a Supabase secret and inside your Shortcut — never in this repository — and all it can do is add a link to your own Unsorted.
 - Embedded X / Instagram / Reddit posts and YouTube videos run in their own sandboxed frames from those sites, so their code can never read your login. Preview pictures from other sites are loaded without telling them which page you came from.
 
 ---
@@ -231,7 +324,7 @@ Copy an image in another app, open Stash and tap **Paste** (on the board, in *Ne
 - `npm run build` creates the production site in `dist/`.
 - The deploy workflow lives in `.github/workflows/deploy.yml`.
 - Database / storage / security rules: `supabase/setup.sql`, then the files in `supabase/migrations/`.
-- `npm test` runs the unit tests (name matching, tag rules, link parsing / duplicate keys, folder rules, the tag → folder conversion, and the Edge Function's safety checks).
+- `npm test` runs the unit tests (name matching, tag rules, link parsing / duplicate keys, folder rules, the tag → folder conversion, the Edge Functions' safety checks, and Quick Save's key check, link validation and duplicate handling).
   The database test (`tests/migration.test.js`) runs every SQL file against a throwaway PostgreSQL database — including the conversion, twice. It only runs when you point it at a PostgreSQL server: `STASH_PG_URL=postgresql://postgres:postgres@localhost:5432/postgres npm test` (otherwise it's skipped).
 
 | File | What it is |
@@ -242,6 +335,9 @@ Copy an image in another app, open Stash and tap **Paste** (on the board, in *Ne
 | `src/links.js` | Link helpers: finding a URL in text, platforms, YouTube IDs, embeds, tracking-parameter clean-up, duplicate keys |
 | `src/previews.js` | Talks to the `link-preview` Edge Function and saves the results |
 | `supabase/functions/link-preview/index.ts` | The Edge Function (Open Graph previews, with the safety checks) |
+| `supabase/functions/quick-save/index.ts` | The Quick Save Edge Function for the “Save to Stash” Shortcut. One self-contained file (it's pasted into the dashboard), so it carries its own copy of link-preview's safety checks and of the duplicate rules in `src/links.js`; `tests/quick-save.test.js` fails if the copies drift apart |
+| `src/views/reference.js` | The “Reference link” on character images: the dialog and the *Open reference* button |
+| `.env.example` | The names of the two Supabase secrets Quick Save needs, with fake values. The real ones are only ever typed into the Supabase dashboard |
 | `src/api.js` | Everything that talks to Supabase |
 | `src/compress.js` | In-browser image resizing/compression |
 | `src/views/` | The screens: login, home, grid, detail, tags, Link Vault (`vault.js`, `folder-ui.js`, `vault-tags.js`, `link-detail.js`, `add-link.js`, `embeds.js`), dialogs, lightbox |
