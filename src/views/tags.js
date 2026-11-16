@@ -1,19 +1,19 @@
 import { h, icon, modal, toast, errorToast, confirmDialog, promptDialog } from '../ui.js';
 import {
-  api, state, tagCounts, linkTagCounts, tagUseCounts, groupedTags, sortedGroups, tagByName, groupById, upsertTags, dropTagsLocally, clearLinkFilters,
+  api, state, tagCounts, groupedTags, sortedGroups, tagByName, groupById, upsertTags, dropTagsLocally,
 } from '../state.js';
 import { tagKey } from '../text.js';
 import { rerender } from '../nav.js';
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-/** "3 characters", "2 links" or "3 characters and 2 links" */
+/** "3 characters" (or '' if unused). Link Vault tags are separate — see vault-tags.js. */
 function usage(t) {
-  const c = tagCounts().get(t.id) || 0, l = linkTagCounts().get(t.id) || 0;
-  return [c ? plural(c, 'character') : null, l ? plural(l, 'link') : null].filter(Boolean).join(' and ');
+  const c = tagCounts().get(t.id) || 0;
+  return c ? plural(c, 'character') : '';
 }
 const isUnique = (e) => e?.code === '23505' || /duplicate key|unique/i.test(e?.message || '');
 
-/** The Tags page: tags with usage counts, organised by group. */
+/** The Characters Tags page: tags with usage counts, organised by group. */
 export function renderTags(root) {
   const counts = tagCounts();
   const sections = groupedTags({ keepEmpty: true })
@@ -22,7 +22,7 @@ export function renderTags(root) {
 
   const head = h('header.page-head',
     h('div.titleblock',
-      h('p.eyebrow', `Library · ${plural(nTags, 'tag')} · ${plural(nGroups, 'group')}`),
+      h('p.eyebrow', `Characters · ${plural(nTags, 'tag')} · ${plural(nGroups, 'group')}`),
       h('h1.title', 'Tags', h('span.title-dot', '.'))),
     h('div.actions',
       h('button.btn', { onclick: () => newGroup() }, icon('plus'), 'New group'),
@@ -31,7 +31,7 @@ export function renderTags(root) {
   const body = !nTags && !nGroups
     ? h('div.empty',
         h('h2', 'No tags yet'),
-        h('p.muted', 'Tags you add to characters and links show up here. You can also create groups — like Genre, Role or Mood — to keep them organised.'),
+        h('p.muted', 'Tags you add to characters show up here. You can also create groups — like Genre, Role or Mood — to keep them organised. (The Link Vault has its own tags.)'),
         h('div.row', h('button.btn', { onclick: () => newGroup() }, 'New group'), h('button.btn.primary', { onclick: () => newTag() }, 'New tag')))
     : h('div.tag-groups', sections.map((s) => groupSection(s, counts)));
 
@@ -55,7 +55,6 @@ function groupSection({ group, tags }, counts) {
 }
 
 function tagRow(t, n) {
-  const nLinks = linkTagCounts().get(t.id) || 0;
   const select = h('select.group-select', {
     'aria-label': `Group for ${t.name}`,
     onchange: async (e) => {
@@ -70,16 +69,12 @@ function tagRow(t, n) {
     h('option', { value: '', selected: !t.group_id }, 'Ungrouped'),
     sortedGroups().map((g) => h('option', { value: g.id, selected: g.id === t.group_id }, g.name)));
 
-  const showLinks = () => { clearLinkFilters(); state.linkFilter.tags.add(t.id); };
   return h('li.tag-row', { 'data-tag': t.id },
     h('span.tag-name-wrap',
-      !n && nLinks
-        ? h('a.tag-name', { href: '#/links', title: `Show links tagged ${t.name}`, onclick: showLinks }, t.name, h('span.tag-count', ` (${n})`))
-        : h('a.tag-name', {
-            href: '#/characters', title: `Show characters tagged ${t.name}`,
-            onclick: () => { state.tags.clear(); state.tags.add(t.id); state.search = ''; state.favoritesOnly = false; },
-          }, t.name, h('span.tag-count', ` (${n})`)),
-      nLinks ? h('a.tag-links', { href: '#/links', title: `Show links tagged ${t.name}`, onclick: showLinks }, plural(nLinks, 'link')) : null),
+      h('a.tag-name', {
+        href: '#/characters', title: `Show characters tagged ${t.name}`,
+        onclick: () => { state.tags.clear(); state.tags.add(t.id); state.search = ''; state.favoritesOnly = false; },
+      }, t.name, h('span.tag-count', ` (${n})`))),
     h('div.tag-row-actions',
       h('label.move', h('span.sr-only', 'Move to'), select),
       h('button.icon-btn.small', { title: 'Rename', 'aria-label': `Rename ${t.name}`, onclick: () => renameTag(t) }, icon('edit')),
@@ -148,7 +143,7 @@ async function deleteTag(t) {
 
 /** Pick a target tag, then merge `t` into it. */
 function mergeTag(t) {
-  const counts = tagUseCounts();
+  const counts = tagCounts();
   let target = null;
   const search = h('input', { type: 'search', placeholder: 'Find a tag', autocomplete: 'off', 'aria-label': 'Find a tag' });
   const list = h('ul.merge-list', { role: 'listbox', 'aria-label': 'Merge into' });

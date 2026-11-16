@@ -1,6 +1,7 @@
 import { realApi } from './api.js';
 import { tagKey, matchesSearch, normName } from './text.js';
 import { linkMatches } from './links.js';
+import { subtreeIds, folderById, pathText, UNSORTED } from './folders.js';
 
 export let api = realApi;
 export function setApi(a) { api = a; }
@@ -18,7 +19,13 @@ export const SORTS = ['added', 'name', 'updated'];
 
 export const state = {
   user: null,
-  links: [],              // Link Vault: each has tag_ids and character_ids
+  links: [],              // Link Vault: each has folder_id, tag_ids (Vault tags) and character_ids
+  folders: [],            // Link Vault folders [{ id, name, parent_id, position }]
+  vaultTags: [],          // Link Vault's own tags [{ id, name }] — separate from character tags
+  vaultScope: null,       // folder being shown: null = All links, 'unsorted', or a folder id
+  vaultOpen: new Set(getPref('vault-open', '').split(',').filter(Boolean)), // expanded folders in the tree
+  vaultSelect: null,      // null, or a Set of selected link ids (multi-select mode)
+  lastVaultHash: '#/links', // where "back" from a link goes
   lastSection: 'characters', // where the Tags page's back link goes
   linksReady: null,       // null = loading, true = ok, false = database table missing (migration not run)
   linkFilter: { search: '', tags: new Set(), status: '', favoritesOnly: false, platform: '' },
@@ -27,7 +34,7 @@ export const state = {
   linkView: getPref('link-view', 'grid', VIEWS),
   linkSort: getPref('link-sort', 'added', SORTS),
   characters: [],         // each has tag_ids: [uuid]
-  tagList: [],            // [{ id, name, group_id }]
+  tagList: [],            // Character tags [{ id, name, group_id }]
   groups: [],             // [{ id, name }]
   loaded: false,
   search: '',
@@ -49,20 +56,6 @@ export function tagById(id) { return state.tagList.find((t) => t.id === id); }
 export function tagByName(name) { const k = tagKey(name); return state.tagList.find((t) => tagKey(t.name) === k); }
 export function groupById(id) { return state.groups.find((g) => g.id === id); }
 export function sortedGroups() { return [...state.groups].sort(byName); }
-
-/** How many links use each tag: Map(tagId → count) */
-export function linkTagCounts() {
-  const counts = new Map(state.tagList.map((t) => [t.id, 0]));
-  for (const l of state.links) for (const id of l.tag_ids || []) counts.set(id, (counts.get(id) || 0) + 1);
-  return counts;
-}
-
-/** Characters + links per tag: Map(tagId → number). */
-export function tagUseCounts() {
-  const counts = tagCounts();
-  for (const [id, n] of linkTagCounts()) counts.set(id, (counts.get(id) || 0) + n);
-  return counts;
-}
 
 /** How many characters use each tag: Map(tagId → count) */
 export function tagCounts() {
@@ -113,22 +106,69 @@ export async function saveCharacterTags(c, names) {
   c.tag_ids = rows.map((r) => r.id);
 }
 
-/** Forget tags locally (after delete/merge) and drop them from filters. */
+function dropIds(items, gone, replaceWith) {
+  for (const x of items) {
+    const had = (x.tag_ids || []).some((id) => gone.has(id));
+    x.tag_ids = (x.tag_ids || []).filter((id) => !gone.has(id));
+    if (had && replaceWith && !x.tag_ids.includes(replaceWith)) x.tag_ids.push(replaceWith);
+  }
+}
+
+/** Forget character tags locally (after delete/merge) and drop them from filters. */
 export function dropTagsLocally(ids, replaceWith = null) {
   const gone = new Set(ids);
   state.tagList = state.tagList.filter((t) => !gone.has(t.id));
-  for (const c of state.characters) {
-    const had = (c.tag_ids || []).some((id) => gone.has(id));
-    c.tag_ids = (c.tag_ids || []).filter((id) => !gone.has(id));
-    if (had && replaceWith && !c.tag_ids.includes(replaceWith)) c.tag_ids.push(replaceWith);
-  }
-  for (const l of state.links) {
-    const had = (l.tag_ids || []).some((id) => gone.has(id));
-    l.tag_ids = (l.tag_ids || []).filter((id) => !gone.has(id));
-    if (had && replaceWith && !l.tag_ids.includes(replaceWith)) l.tag_ids.push(replaceWith);
-  }
-  for (const id of ids) { state.tags.delete(id); state.linkFilter.tags.delete(id); }
+  dropIds(state.characters, gone, replaceWith);
+  for (const id of ids) state.tags.delete(id);
 }
+
+// ---------------- Vault tags (Link Vault only) ----------------
+
+export function vaultTagById(id) { return state.vaultTags.find((t) => t.id === id); }
+export function vaultTagByName(name) { const k = tagKey(name); return state.vaultTags.find((t) => tagKey(t.name) === k); }
+export function sortedVaultTags() { return [...state.vaultTags].sort(byName); }
+
+/** How many links use each Vault tag: Map(tagId → count) */
+export function vaultTagCounts() {
+  const counts = new Map(state.vaultTags.map((t) => [t.id, 0]));
+  for (const l of state.links) for (const id of l.tag_ids || []) counts.set(id, (counts.get(id) || 0) + 1);
+  return counts;
+}
+
+/** A link's Vault tags as objects, A–Z. */
+export function vaultTagsOf(l) { return (l.tag_ids || []).map(vaultTagById).filter(Boolean).sort(byName); }
+export function vaultTagNamesOf(l) { return vaultTagsOf(l).map((t) => t.name); }
+
+export function upsertVaultTags(rows) {
+  for (const r of rows) {
+    const i = state.vaultTags.findIndex((t) => t.id === r.id);
+    const tag = { id: r.id, name: r.name };
+    if (i >= 0) state.vaultTags[i] = tag; else state.vaultTags.push(tag);
+  }
+}
+
+/** Forget Vault tags locally (after delete/merge) and drop them from filters. */
+export function dropVaultTagsLocally(ids, replaceWith = null) {
+  const gone = new Set(ids);
+  state.vaultTags = state.vaultTags.filter((t) => !gone.has(t.id));
+  dropIds(state.links, gone, replaceWith);
+  for (const id of ids) state.linkFilter.tags.delete(id);
+}
+
+/**
+ * Where a tag box gets its suggestions from.
+ * Character tags show their group; Vault tags show how many links use them.
+ */
+export const CHARACTER_TAGS = {
+  list: () => state.tagList,
+  counts: () => tagCounts(),
+  hint: (t) => groupById(t.group_id)?.name || 'Ungrouped',
+};
+export const VAULT_TAGS = {
+  list: () => state.vaultTags,
+  counts: () => vaultTagCounts(),
+  hint: (t, counts) => { const n = counts.get(t.id) || 0; return `${n} link${n === 1 ? '' : 's'}`; },
+};
 
 // ---------------- characters ----------------
 
@@ -208,14 +248,31 @@ export function linkTitle(l) {
   return l.title?.trim() || l.url.replace(/^https?:\/\/(www\.)?/, '');
 }
 
-export function filteredLinks() {
+/** The folder a link is really in (null = Unsorted, also if its folder is gone). */
+export function linkFolderId(l) {
+  return l.folder_id && folderById(state.folders, l.folder_id) ? l.folder_id : null;
+}
+export function linkPath(l) { return pathText(state.folders, linkFolderId(l)); }
+
+/**
+ * Links in a scope: null = All links, 'unsorted', or a folder id.
+ * `deep` includes subfolders (used while searching / filtering).
+ */
+export function linksInScope(scope = state.vaultScope, { deep = false } = {}) {
+  if (!scope) return state.links;
+  if (scope === UNSORTED) return state.links.filter((l) => !linkFolderId(l));
+  const ids = deep ? subtreeIds(state.folders, scope) : new Set([scope]);
+  return state.links.filter((l) => ids.has(linkFolderId(l)));
+}
+
+export function filteredLinks(scope = state.vaultScope) {
   const f = state.linkFilter;
-  return state.links.filter((l) =>
+  return linksInScope(scope, { deep: true }).filter((l) =>
     (!f.favoritesOnly || l.is_favorite) &&
     (!f.status || l.status === f.status) &&
     (!f.platform || l.platform === f.platform) &&
     [...f.tags].every((t) => l.tag_ids?.includes(t)) &&
-    (linkMatches(l, f.search, normName) || tagNamesOf(l).some((t) => normName(t).includes(normName(f.search)))),
+    (linkMatches(l, f.search, normName) || vaultTagNamesOf(l).some((t) => normName(t).includes(normName(f.search)))),
   );
 }
 
@@ -234,15 +291,32 @@ export function linksOf(c) {
   return state.links.filter((l) => l.character_ids?.includes(c.id));
 }
 
-/** Save a link's tags by name (missing ones are created). */
+/** Save a link's Vault tags by name (missing ones are created). */
 export async function saveLinkTags(l, names) {
   const want = [...new Set(names.map(tagKey))].sort().join('\n');
-  const have = tagNamesOf(l).map(tagKey).sort().join('\n');
+  const have = vaultTagNamesOf(l).map(tagKey).sort().join('\n');
   if (want === have) return;
   const rows = await api.setLinkTags(l.id, names);
-  upsertTags(rows);
+  upsertVaultTags(rows);
   l.tag_ids = rows.map((r) => r.id);
 }
+
+/** Move links to a folder (null = Unsorted). */
+export async function moveLinksTo(links, folderId) {
+  const moving = links.filter((l) => linkFolderId(l) !== folderId);
+  if (!moving.length) return 0;
+  await api.moveLinks(moving.map((l) => l.id), folderId);
+  for (const l of moving) l.folder_id = folderId;
+  return moving.length;
+}
+
+// "Add link" remembers the last folder used, in this browser only
+export function lastFolder() {
+  const id = getPref('last-folder', '');
+  return id && folderById(state.folders, id) ? id : null;
+}
+export function setLastFolder(id) { setPref('last-folder', id || ''); }
+export function saveVaultOpen() { setPref('vault-open', [...state.vaultOpen].join(',')); }
 
 /** Save which characters a link is connected to. */
 export async function saveLinkCharacters(l, ids) {
