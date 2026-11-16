@@ -14,7 +14,8 @@ import { openNewCharacter } from './views/new-character.js';
 import { renderCompare } from './views/compare.js';
 import { renderTags } from './views/tags.js';
 import { openImageChooser } from './views/image-chooser.js';
-import { renderVault, vaultMasthead } from './views/vault.js';
+import { renderVault, vaultMasthead, scopeFromArg, parentHref } from './views/vault.js';
+import { renderVaultTags } from './views/vault-tags.js';
 import { renderLinkDetail, resetLinkEditing } from './views/link-detail.js';
 import { openAddLink, pasteLinkButton } from './views/add-link.js';
 import { fillPendingPreviews } from './previews.js';
@@ -49,7 +50,10 @@ function hubBar(r, sec) {
 }
 
 function tagsLink(r) {
-  return h(`a.btn.tags-link${r.view === 'tags' ? '.on' : ''}`, { href: '#/tags', title: 'Manage tags and tag groups (T)', 'aria-current': r.view === 'tags' ? 'page' : null }, 'Tags');
+  return h(`a.btn.tags-link${r.view === 'tags' ? '.on' : ''}`, { href: '#/tags', title: 'Manage character tags and tag groups (T)', 'aria-current': r.view === 'tags' ? 'page' : null }, 'Tags');
+}
+function vaultTagsLink(r) {
+  return h(`a.btn.tags-link${r.view === 'vault-tags' ? '.on' : ''}`, { href: '#/vault-tags', title: 'Manage Vault tags (T)', 'aria-current': r.view === 'vault-tags' ? 'page' : null }, 'Tags');
 }
 
 function characterActions(r) {
@@ -70,7 +74,7 @@ function characterActions(r) {
 
 function linkActions(r) {
   return h('div.actions',
-    tagsLink(r),
+    vaultTagsLink(r),
     pasteLinkButton(),
     h('button.btn.primary.new-btn', { onclick: () => openAddLink(), title: 'Add a link (N)' }, 'Add link'));
 }
@@ -95,8 +99,9 @@ function sectionHeader(r, sec) {
   if (r.view === 'links') return vaultMasthead(linkActions(r), render, renderView);
   // detail pages, compare, tags: a back link + the section's actions
   const back = sec || SECTIONS[0];
+  const backHref = back.id === 'links' ? state.lastVaultHash || back.href : back.href;
   return h('header.topbar',
-    h('a.back', { href: back.href }, icon('back'), h('span', back.title)),
+    h('a.back', { href: backHref }, icon('back'), h('span', back.title)),
     back.id === 'links' ? linkActions(r) : characterActions(r));
 }
 
@@ -121,7 +126,7 @@ function menuButton() {
 
 function goRandom() {
   const r = route();
-  if (sectionOf(r.view)?.id === 'links' && r.view !== 'tags') {
+  if (sectionOf(r.view)?.id === 'links') {
     const l = randomLink(r.view === 'l' ? r.arg : null);
     if (l) go(`#/l/${l.id}`);
     else toast(state.links.length ? 'No links match your filters' : 'Add some links first!');
@@ -142,7 +147,8 @@ const ROUTES = {
   c: (root, arg) => renderDetail(root, arg),
   compare: (root, arg) => renderCompare(root, arg),
   tags: (root) => renderTags(root),
-  links: (root) => renderVault(root, render),
+  links: (root, arg) => renderVault(root, render, arg),
+  'vault-tags': (root) => renderVaultTags(root),
   l: (root, arg) => renderLinkDetail(root, arg),
 };
 
@@ -157,13 +163,16 @@ function renderView() {
 function render() {
   if (!state.user) { renderLogin(app, { pendingUrl: peekPendingAdd() }); return; }
   const r = route();
+  state.vaultScope = r.view === 'links' ? scopeFromArg(r.arg) : null; // the header's search box needs it
   const key = r.view + '/' + r.arg;
   if (key !== lastRoute) {
     resetEditing();
     resetLinkEditing();
     if (r.view !== 'characters') { state.compareMode = false; state.compareSel = []; }
+    state.vaultSelect = null; // leaving a folder ends "Select"
+    if (r.view === 'links') state.lastVaultHash = location.hash || '#/links';
     const sec = sectionOf(r.view);
-    if (sec && r.view !== 'tags') state.lastSection = sec.id;
+    if (sec) state.lastSection = sec.id;
     lastRoute = key;
     window.scrollTo(0, 0);
   }
@@ -202,7 +211,7 @@ document.addEventListener('paste', (e) => {
   if (!url) return;
   e.preventDefault();
   const r = route();
-  openAddLink({ url, characterIds: r.view === 'c' ? [r.arg] : [] });
+  openAddLink({ url, characterIds: r.view === 'c' ? [r.arg] : [], folderId: null }); // pasted links go to Unsorted
 });
 const dropOverlay = h('div.drop-overlay', h('div', h('p', 'Drop images to add them')));
 document.body.append(dropOverlay);
@@ -223,16 +232,19 @@ document.addEventListener('keydown', (e) => {
   if (!state.user || document.querySelector('dialog[open]')) return;
   if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
   const r = route();
-  const inLinks = sectionOf(r.view)?.id === 'links' && r.view !== 'tags';
+  const inLinks = sectionOf(r.view)?.id === 'links';
   if (e.key === '/') { const s = document.getElementById('search'); if (s) { e.preventDefault(); s.focus(); } }
   else if (e.key === 'n') { e.preventDefault(); if (inLinks) openAddLink(); else openNewCharacter(); }
   else if (e.key === 'r') { e.preventDefault(); goRandom(); }
-  else if (e.key === 't') { e.preventDefault(); go('#/tags'); }
+  else if (e.key === 't') { e.preventDefault(); go(inLinks ? '#/vault-tags' : '#/tags'); }
   else if (e.key === 'h') { e.preventDefault(); go('#/'); }
   else if (e.key === 'Escape') {
     if (['c', 'compare'].includes(r.view)) go('#/characters');
-    else if (r.view === 'l') go('#/links');
-    else if (r.view === 'tags') go(sectionOf('tags').href);
+    else if (r.view === 'l') go(state.lastVaultHash || '#/links');
+    else if (r.view === 'links' && state.vaultSelect) { state.vaultSelect = null; render(); }
+    else if (r.view === 'links' && parentHref(scopeFromArg(r.arg))) go(parentHref(scopeFromArg(r.arg)));
+    else if (r.view === 'tags') go('#/characters');
+    else if (r.view === 'vault-tags') go(state.lastVaultHash || '#/links');
   }
 });
 
@@ -283,11 +295,14 @@ const needsMigration = (e) => /relation .* does not exist|schema cache|column .*
 
 async function loadLinks() {
   try {
-    state.links = await api.listLinks();
+    const [links, folders, vaultTags] = await Promise.all([api.listLinks(), api.listFolders(), api.listVaultTags()]);
+    state.links = links;
+    state.folders = folders;
+    state.vaultTags = vaultTags.map((t) => ({ id: t.id, name: t.name }));
     state.linksReady = true;
   } catch (e) {
     console.error(e);
-    state.links = [];
+    state.links = []; state.folders = []; state.vaultTags = [];
     state.linksReady = false;
     if (!needsMigration(e)) errorToast(e);
   }
@@ -303,7 +318,7 @@ function pickUpPendingLink() {
   const url = takePendingAdd();
   if (!url) return;
   if (route().view !== 'links') location.hash = '#/links';
-  setTimeout(() => openAddLink({ url }), 0);
+  setTimeout(() => openAddLink({ url, folderId: null }), 0); // iOS Shortcut / share → Unsorted unless you pick a folder
 }
 
 async function onUser(user) {
@@ -318,6 +333,7 @@ async function onUser(user) {
   } else {
     state.characters = []; state.tagList = []; state.groups = []; state.tags.clear();
     state.links = []; state.linksReady = null; state.linkFilter.tags.clear();
+    state.folders = []; state.vaultTags = []; state.vaultSelect = null;
   }
   render();
   if (user && state.loaded) {

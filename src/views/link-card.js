@@ -1,7 +1,7 @@
 // How a saved link looks: its picture (your thumbnail → YouTube's → the site's
 // preview → a platform-styled placeholder), grid cards and list rows.
 import { h, icon, errorToast } from '../ui.js';
-import { linkTitle, tagNamesOf, patchLink } from '../state.js';
+import { linkTitle, vaultTagNamesOf, patchLink, linkPath } from '../state.js';
 import { platformLabel, domainOf, youtubeInfo, youtubeThumb } from '../links.js';
 import { listRow } from './viewbar.js';
 
@@ -81,33 +81,55 @@ export function doneButton(l, after) {
 const statusText = (l) => (l.status === 'done' ? 'Done' : 'To watch');
 
 function metaLine(l) {
-  const tags = tagNamesOf(l);
+  const tags = vaultTagNamesOf(l);
   return [platformLabel(l.platform), statusText(l), ...tags.slice(0, 3), tags.length > 3 ? `+${tags.length - 3}` : null].filter(Boolean).join(' · ');
 }
 
+/**
+ * Options for cards and rows:
+ *  showPath — show which folder the link is in (search results, All links)
+ *  select   — { selected, toggle() } while picking links for "Move to folder…"
+ */
+function selectHandlers(l, select) {
+  if (!select) return {};
+  return {
+    onclick: (e) => { e.preventDefault(); select.toggle(); },
+    'aria-pressed': String(select.selected),
+    'aria-label': `${select.selected ? 'Unselect' : 'Select'} ${linkTitle(l)}`,
+  };
+}
+const selBadge = (select) => (select ? h('span.sel-badge', { 'aria-hidden': 'true' }, select.selected ? icon('check') : null) : null);
+const pathLine = (l) => h('p.card-path', icon('folder'), linkPath(l));
+
 /** Card for the grid. `after` runs when star/done change (to refresh filtered views). */
-export function linkCard(l, after) {
+export function linkCard(l, after, { showPath = false, select = null } = {}) {
   const href = `#/l/${l.id}`;
-  return h(`article.lcard${l.status === 'done' ? '.is-done' : ''}`, { 'data-id': l.id },
-    h('a.lcard-media-link', { href, tabindex: '-1', 'aria-hidden': 'true' }, linkMedia(l)),
+  const sel = selectHandlers(l, select);
+  const cls = `${l.status === 'done' ? '.is-done' : ''}${select ? '.selectable' : ''}${select?.selected ? '.selected' : ''}`;
+  return h(`article.lcard${cls}`, { 'data-id': l.id },
+    h('a.lcard-media-link', { href, tabindex: '-1', 'aria-hidden': 'true', onclick: sel.onclick }, selBadge(select), linkMedia(l)),
     h('div.caption',
-      h('a.card-link', { href },
+      h('a.card-link', { href, ...sel },
         h('h3.lcard-title', linkTitle(l)),
         h('p.card-source', domainOf(l.url)),
+        showPath ? pathLine(l) : null,
         h('p.card-meta', metaLine(l))),
-      h('div.card-btns', doneButton(l, after), starButton(l, after))));
+      select ? null : h('div.card-btns', doneButton(l, after), starButton(l, after))));
 }
 
 /** Row for the compact list. */
-export function linkRow(l, after) {
+export function linkRow(l, after, { showPath = false, select = null } = {}) {
+  const sel = selectHandlers(l, select);
   return listRow({
     href: `#/l/${l.id}`,
-    cls: l.status === 'done' ? '.is-done' : '',
-    thumb: linkMedia(l, { size: 'row' }),
+    cls: `${l.status === 'done' ? '.is-done' : ''}${select ? '.selectable' : ''}${select?.selected ? '.selected' : ''}`,
+    thumb: [selBadge(select), linkMedia(l, { size: 'row' })],
     title: linkTitle(l),
-    sub: domainOf(l.url),
+    sub: showPath ? [domainOf(l.url), h('span.row-path', icon('folder'), linkPath(l))] : domainOf(l.url),
     meta: metaLine(l),
-    buttons: [doneButton(l, after), starButton(l, after)],
+    onclick: sel.onclick,
+    pressed: sel['aria-pressed'],
+    buttons: select ? [] : [doneButton(l, after), starButton(l, after)],
   });
 }
 

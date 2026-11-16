@@ -1,5 +1,7 @@
 import { h, icon, modal, toast, errorToast } from '../ui.js';
-import { api, state, linkTitle, saveLinkTags, saveLinkCharacters } from '../state.js';
+import { api, state, linkTitle, saveLinkTags, saveLinkCharacters, VAULT_TAGS, lastFolder, setLastFolder } from '../state.js';
+import { folderSelect, folderHref } from './folder-ui.js';
+import { folderById, pathText, UNSORTED } from '../folders.js';
 import { parseUrl, cleanUrl, platformOf, platformLabel, domainOf, findDuplicates, youtubeInfo, youtubeThumb } from '../links.js';
 import { tagInput } from './tag-input.js';
 import { charPicker } from './char-picker.js';
@@ -35,13 +37,25 @@ export function pasteLinkButton({ label = 'Paste link' } = {}) {
 }
 
 /**
- * The "Add link" dialog.
- * opts: { url, characterIds, hint }
+ * Which folder "Add link" starts on: the folder you're looking at, else the
+ * last one you used in this browser, else Unsorted.
  */
-export function openAddLink({ url = '', characterIds = [], hint = '' } = {}) {
+function defaultFolder() {
+  const s = state.vaultScope;
+  if (location.hash.startsWith('#/links') && s && s !== UNSORTED && folderById(state.folders, s)) return s;
+  if (location.hash.startsWith('#/links') && s === UNSORTED) return null;
+  return lastFolder();
+}
+
+/**
+ * The "Add link" dialog.
+ * opts: { url, characterIds, hint, folderId } — folderId: a folder id, null for
+ * Unsorted (used by the iOS Shortcut, sharing and Ctrl+V), or leave it out for the default.
+ */
+export function openAddLink({ url = '', characterIds = [], hint = '', folderId } = {}) {
   if (isOpen) return;
   if (state.linksReady === false) {
-    toast('The Link Vault needs a database update first — run supabase/migrations/20261104_02_link_vault.sql (see README).', { type: 'error', timeout: 8000 });
+    toast('The Link Vault needs a database update first — run the newest files in supabase/migrations (see README).', { type: 'error', timeout: 8000 });
     return;
   }
   isOpen = true;
@@ -71,7 +85,8 @@ export function openAddLink({ url = '', characterIds = [], hint = '' } = {}) {
   const title = h('input', { maxlength: 300, placeholder: 'Found automatically — or type your own', autocomplete: 'off' });
   title.addEventListener('input', () => { titleTouched = !!title.value.trim(); drawCard(); });
   const notes = h('textarea', { rows: 3, placeholder: 'Why you saved it, what to look for…' });
-  const tags = tagInput();
+  const tags = tagInput([], VAULT_TAGS);
+  const folder = folderSelect(folderId === undefined ? defaultFolder() : folderId);
   const chars = charPicker(characterIds);
   const statusTodo = h('input', { type: 'radio', name: 'link-status', value: 'todo', checked: true });
   const statusDone = h('input', { type: 'radio', name: 'link-status', value: 'done' });
@@ -189,7 +204,9 @@ export function openAddLink({ url = '', characterIds = [], hint = '' } = {}) {
           is_favorite: fav.checked,
           preview_status: p ? p.status : 'pending',
           preview_fetched_at: p ? new Date().toISOString() : null,
+          folder_id: folder.value(),
         });
+        setLastFolder(l.folder_id);
         state.links.unshift(l);
         const after = [];
         after.push(saveLinkTags(l, tags.value()).catch(errorToast));
@@ -198,9 +215,14 @@ export function openAddLink({ url = '', characterIds = [], hint = '' } = {}) {
         dlg.close();
         await Promise.all(after);
         if (file) await setLinkCover(l, file);
-        toast('Saved to the Link Vault', { type: 'ok', timeout: 2000 });
-        if (location.hash.startsWith('#/links')) rerender();
-        else go(`#/l/${l.id}`);
+        const where = pathText(state.folders, l.folder_id);
+        toast(`Saved to ${where}`, { type: 'ok', timeout: 2200 });
+        if (location.hash.startsWith('#/links')) {
+          // show it: stay if it's visible here, else open its folder
+          const s = state.vaultScope;
+          const visible = !s || (s === UNSORTED ? !l.folder_id : s === l.folder_id);
+          if (visible) rerender(); else go(folderHref(l.folder_id ?? UNSORTED));
+        } else go(`#/l/${l.id}`);
       } catch (err) { errorToast(err); submit.disabled = false; }
     },
   },
@@ -214,6 +236,7 @@ export function openAddLink({ url = '', characterIds = [], hint = '' } = {}) {
     dup,
     card,
     h('label.field', h('span', 'Title'), title),
+    h('label.field', h('span', 'Folder'), folder.el),
     h('label.field', h('span', 'Notes ', h('em.optional', 'optional')), notes),
     h('label.field', h('span', 'Tags'), tags.el),
     h('label.field', h('span', 'Characters ', h('em.optional', 'optional')), chars.el),
