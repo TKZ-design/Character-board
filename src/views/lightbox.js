@@ -1,5 +1,6 @@
 import { h, icon } from '../ui.js';
 import { api } from '../state.js';
+import { referenceButton } from './reference.js';
 
 /** Full-screen image viewer with zoom, arrows, keyboard and swipe. */
 export async function openLightbox(images, start = 0) {
@@ -12,7 +13,8 @@ export async function openLightbox(images, start = 0) {
   const next = h('button.lb-nav.lb-next', { 'aria-label': 'Next image', onclick: (e) => { e.stopPropagation(); go(1); } }, icon('next'));
   const close = h('button.lb-close', { 'aria-label': 'Close', onclick: () => dlg.close() }, icon('close'));
   const hint = h('div.lb-hint', 'Click image to zoom');
-  const dlg = h('dialog.lightbox', stage, prev, next, close, counter, hint);
+  const ref = h('div.lb-ref');
+  const dlg = h('dialog.lightbox', stage, prev, next, close, counter, ref, hint);
   document.body.append(dlg);
   dlg.showModal();
 
@@ -21,6 +23,7 @@ export async function openLightbox(images, start = 0) {
     setZoom(false);
     counter.textContent = images.length > 1 ? `${i + 1} / ${images.length}` : '';
     prev.hidden = next.hidden = images.length < 2;
+    ref.replaceChildren(referenceButton(im) || '');
     // show the thumbnail immediately, then swap in the full-size file
     const urls = await api.getUrls([im.thumb_path, im.path]);
     if (images[i] !== im) return;

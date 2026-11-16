@@ -82,13 +82,16 @@ export function icon(name, cls = '') {
 
 // ---------- toast ----------
 let toastHost;
-export function toast(msg, { type = 'info', timeout = 3500 } = {}) {
+/** `action: { label, onclick }` adds one button to the message (tapping it also closes the message). */
+export function toast(msg, { type = 'info', timeout = 3500, action = null } = {}) {
   toastHost ||= document.body.appendChild(h('div.toasts', { 'aria-live': 'polite' }));
-  const t = h(`div.toast.${type}`, msg);
-  toastHost.append(t);
+  const text = h('span', msg);
   const remove = () => t.remove();
+  const t = h(`div.toast.${type}`, text,
+    action ? h('button.toast-action', { type: 'button', onclick: () => { remove(); action.onclick(); } }, action.label) : null);
+  toastHost.append(t);
   if (timeout) setTimeout(remove, timeout);
-  return { el: t, update: (m) => (t.textContent = m), close: remove };
+  return { el: t, update: (m) => (text.textContent = m), close: remove };
 }
 
 export function errorToast(e) {
