@@ -105,6 +105,10 @@ export const realApi = {
       throw e;
     }
   },
+  /** Change fields (e.g. reference_url) on one or more images. */
+  async updateImages(ids, patch) {
+    check(await supabase.from('images').update(patch).in('id', ids));
+  },
   async deleteImage(image) {
     check(await supabase.from('images').delete().eq('id', image.id));
     await supabase.storage.from(BUCKET).remove([image.path, image.thumb_path].filter(Boolean));

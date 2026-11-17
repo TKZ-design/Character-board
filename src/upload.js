@@ -2,6 +2,8 @@ import { api, state } from './state.js';
 import { compressImage, isImageFile } from './compress.js';
 import { toast } from './ui.js';
 import { confirmDuplicates, hashFile } from './hash.js';
+import { openReferenceDialog } from './views/reference.js';
+import { rerender } from './nav.js';
 
 /**
  * Compress and upload files to a character, one at a time.
@@ -18,6 +20,7 @@ export async function addImages(character, files, onEach) {
 
   const t = toast('', { timeout: 0 });
   let done = 0, failed = 0;
+  const added = [];
   for (const file of list) {
     t.update(`Uploading ${done + failed + 1} of ${list.length}…`);
     try {
@@ -26,6 +29,7 @@ export async function addImages(character, files, onEach) {
       const pos = Math.max(-1, ...character.images.map((i) => i.position ?? 0)) + 1;
       const row = await api.uploadImage(state.user.id, character.id, img, pos);
       character.images.push(row);
+      added.push(row);
       done++;
       onEach?.(row);
     } catch (e) {
@@ -35,7 +39,13 @@ export async function addImages(character, files, onEach) {
     }
   }
   t.close();
-  if (done) toast(`Added ${done} image${done > 1 ? 's' : ''}`, { type: 'ok' });
+  if (done) {
+    // optional: one reference link (where they came from) for the images just added
+    toast(`Added ${done} image${done > 1 ? 's' : ''}`, {
+      type: 'ok', timeout: 9000,
+      action: { label: 'Add reference link', onclick: () => openReferenceDialog(added, rerender) },
+    });
+  }
   return { done, failed };
 }
 

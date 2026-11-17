@@ -1100,3 +1100,19 @@ li:last-child > .merge-option, li:last-child > .char-pick-item { border-bottom: 
   .select-bar .btn.primary { flex: 1 1 100%; }
   .folder-select { font-size: 16px; }
 }
+
+/* ---------- reference link on character images ---------- */
+.ref-open {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px;
+  background: var(--bg); color: var(--text); font-size: 12px; text-decoration: none; white-space: nowrap;
+}
+.ref-open:hover { background: var(--text); color: var(--bg); text-decoration: none; }
+.ref-open .icon { width: 14px; height: 14px; }
+.thumb > .ref-open { position: absolute; left: 0; bottom: 0; max-width: 100%; }
+.lb-ref { position: fixed; left: 50%; translate: -50% 0; bottom: calc(max(24px, env(safe-area-inset-bottom)) + 22px); }
+.lb-ref:empty { display: none; }
+.toast-action {
+  all: unset; cursor: pointer; margin: -12px 0 -12px 16px; padding: 12px 0; min-height: 20px;
+  text-decoration: underline; text-underline-offset: 3px; font-weight: 600; white-space: nowrap;
+}
+.toast-action:focus-visible { outline: 2px solid var(--bg); outline-offset: 2px; }

@@ -65,7 +65,8 @@ async function seed() {
       const iid = crypto.randomUUID();
       const path = `${user.id}/${id}/${iid}.png`;
       blobs.set(path, await swatch(i ? '#334155' : color, w, h, name.split(' ')[0]));
-      imgs.push({ id: iid, character_id: id, path, thumb_path: path, width: w, height: h, position: i, sha256: null, created_at: now() });
+      imgs.push({ id: iid, character_id: id, path, thumb_path: path, width: w, height: h, position: i, sha256: null,
+        reference_url: !i && name === 'Captain Vex' ? 'https://example.com/art/captain-vex' : null, created_at: now() });
     }
     chars.push({ id, user_id: user.id, name, source, notes: `Notes about ${name}.`, links: ['https://example.com/ref'],
       cover_image_id: null, is_favorite: false, created_at: now(), updated_at: now(), images: imgs });
@@ -137,9 +138,13 @@ export const mockApi = {
     const thumb_path = `${user.id}/${characterId}/${id}_thumb.${img.ext}`;
     blobs.set(path, img.full); blobs.set(thumb_path, img.thumb);
     const row = { id, character_id: characterId, path, thumb_path, width: img.width, height: img.height, position,
-      sha256: img.sha256 || null, created_at: now() };
+      sha256: img.sha256 || null, reference_url: null, created_at: now() };
     chars.find((c) => c.id === characterId).images.push(row);
     return structuredClone(row);
+  },
+  async updateImages(ids, patch) {
+    await delay();
+    for (const c of chars) for (const i of c.images) if (ids.includes(i.id)) Object.assign(i, patch);
   },
   async deleteImage(image) {
     for (const c of chars) c.images = c.images.filter((i) => i.id !== image.id);

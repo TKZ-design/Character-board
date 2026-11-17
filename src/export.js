@@ -42,6 +42,8 @@ export async function exportZip() {
         folder,
         cover: cover ? `${folder}/${cover.name}` : null,
         images: files.map((f) => `${folder}/${f.name}`),
+        // "Reference link" per image (where it came from) — only images that have one
+        image_references: Object.fromEntries(files.filter((f) => f.im.reference_url).map((f) => [`${folder}/${f.name}`, f.im.reference_url])),
         vault_links: linksOf(c).map((l) => l.url),
       });
       for (const f of files) {

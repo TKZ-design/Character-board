@@ -97,6 +97,8 @@ insert into public.vault_link_tags (user_id, link_id, tag_id)
 
 const MIGRATION = file('supabase/migrations/20261116_01_vault_folders_tags.sql');
 
+const REFERENCE_MIGRATION = file('supabase/migrations/20261116_02_image_reference_url.sql');
+
 /** Everything the update could touch, in a stable order. */
 const snapshot = () => sql(`select json_build_object(
   'folders', (select json_agg(f order by f.id) from public.vault_folders f),
@@ -122,6 +124,7 @@ before(() => {
   sql(file('supabase/migrations/20261104_02_link_vault.sql'));
   sql(SEED);
   sql(MIGRATION);
+  sql(REFERENCE_MIGRATION);
 });
 after(() => { if (!skip) psql(BASE, `drop database if exists ${dbName} with (force);`); });
 
@@ -227,6 +230,32 @@ test('Vault tags and Character tags stay separate', { skip }, () => {
   // a link can't use someone else's Vault tag
   expectError(`insert into public.vault_link_tags (link_id, tag_id) values ('30000000-0000-0000-0000-000000000009',
     '${sql(`select id from public.vault_tags where name = 'Beta'`)}');`, B, /row-level security/);
+});
+
+test('image reference link: optional, http(s) only, max 2000 characters, own images only', { skip }, () => {
+  const CHAR = '20000000-0000-0000-0000-000000000001';
+  const IMG = '40000000-0000-0000-0000-000000000001';
+  sql(`insert into public.images (id, character_id, path) values ('${IMG}', '${CHAR}', '${A}/x/1.jpg');`, A);
+  const ref = () => sql(`select coalesce(reference_url, '(none)') from public.images where id = '${IMG}'`);
+  assert.equal(ref(), '(none)');                                       // optional: empty by default
+  sql(`update public.images set reference_url = 'https://example.com/art/1' where id = '${IMG}';`, A);
+  assert.equal(ref(), 'https://example.com/art/1');
+  sql(`update public.images set reference_url = 'HTTP://example.com/' || repeat('a', 1981) where id = '${IMG}';`, A); // exactly 2000
+  for (const bad of ['javascript:alert(1)', 'ftp://example.com/a', 'example.com', '', ' https://example.com']) {
+    expectError(`update public.images set reference_url = '${bad}' where id = '${IMG}';`, A, /images_reference_url_check/);
+  }
+  expectError(`update public.images set reference_url = 'https://example.com/' || repeat('a', 1982) where id = '${IMG}';`, A, /images_reference_url_check/);
+  // someone else can't see or change it
+  sql(`update public.images set reference_url = 'https://evil.example.com' where id = '${IMG}';`, B);
+  assert.equal(sql(`select count(*) from public.images where id = '${IMG}'`, B), '0');
+  assert.match(ref(), /^HTTP:\/\/example\.com/);
+  sql(`update public.images set reference_url = null where id = '${IMG}';`, A);    // can be removed again
+  assert.equal(ref(), '(none)');
+  // running the file again keeps the data and the rule
+  sql(`update public.images set reference_url = 'https://example.com/keep' where id = '${IMG}';`, A);
+  sql(REFERENCE_MIGRATION);
+  assert.equal(ref(), 'https://example.com/keep');
+  expectError(`update public.images set reference_url = 'nope' where id = '${IMG}';`, A, /images_reference_url_check/);
 });
 
 test('deleting a whole account still works', { skip }, () => {

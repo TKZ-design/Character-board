@@ -8,6 +8,13 @@ big changes, keep README.md step-by-step for a non-coder, commit in small steps.
 - Vite + plain JavaScript (no framework). DOM built with `h()` from `src/ui.js`. Hosted on GitHub Pages (`.github/workflows/deploy.yml`).
 - Supabase (auth by magic link / code, Postgres with Row Level Security on every table — `user_id = auth.uid()`, private storage bucket).
 - Edge Function `supabase/functions/link-preview` (Open Graph previews). Don't change it unless asked.
+- Edge Function `supabase/functions/quick-save` (one-tap save from the iPhone Shortcut "Save to Stash"). Deployed by pasting into the
+  dashboard editor, so it must stay ONE self-contained file with no imports. It therefore holds copies of link-preview's SSRF checks +
+  preview lookup and of the clean-up / duplicate-key rules in `src/links.js`. When either original changes, copy the change over:
+  `tests/quick-save.test.js` compares them (text for link-preview, behaviour for `urlKey` / `cleanUrl` / `platformOf`).
+  No login: "Verify JWT" is off for this function; it checks the `x-stash-key` header against the `QUICK_SAVE_KEY` secret in constant
+  time, POST only, body ≤ 4 KB, one http(s) URL, and writes only `vault_links` rows for `OWNER_USER_ID` (folder_id null = Unsorted)
+  using the server key Supabase injects. Before the key check every refusal is the same generic text; replies are plain text.
 - No new paid services or heavy dependencies.
 
 ## Database changes
@@ -19,6 +26,11 @@ big changes, keep README.md step-by-step for a non-coder, commit in small steps.
   when `STASH_PG_URL` is set; add new migrations to its `before()` and test them there. In a cloud session:
   `service postgresql start`, set the postgres password, then
   `STASH_PG_URL=postgresql://postgres:postgres@localhost:5432/postgres npm test`.
+
+## Data model (Characters)
+- `images.reference_url` = optional "Reference link" per image (http/https, max 2000 chars, DB check constraint; `referenceLink()` in
+  `src/links.js` mirrors it). It is NOT the character's `source` / `links` ("Source", "Source links") — don't rename or merge them.
+  In the ZIP backup it is `image_references` in `characters.json`.
 
 ## Data model (Link Vault)
 - `vault_links.folder_id` → `vault_folders` (null = Unsorted). Folders nest max 3 levels (`parent_id`), manual `position`,
@@ -42,4 +54,5 @@ big changes, keep README.md step-by-step for a non-coder, commit in small steps.
 - Drive the UI with Playwright against `npm run dev` + `?mock` at desktop, 390px and 320px, light and dark.
   Navigate with `location.hash` (a full reload resets the mock data).
 - Never commit secrets. The app needs none: the publishable key in `src/config.js` is public by design.
-  If a secret is ever needed, document it in a `.env.example` with a placeholder value.
+  The only secrets are Quick Save's `QUICK_SAVE_KEY` and `OWNER_USER_ID`: Supabase secrets, set in the dashboard, named (with
+  placeholder values) in `.env.example`. Any new secret gets the same treatment.

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseUrl, cleanUrl, urlKey, platformOf, youtubeInfo, embedInfo, domainOf, findDuplicates, linkMatches } from '../src/links.js';
+import { parseUrl, cleanUrl, urlKey, platformOf, youtubeInfo, embedInfo, domainOf, findDuplicates, linkMatches, referenceLink } from '../src/links.js';
 
 test('parseUrl finds the link in shared text', () => {
   assert.equal(parseUrl('Look at this https://youtu.be/dQw4w9WgXcQ?si=abc!'), 'https://youtu.be/dQw4w9WgXcQ?si=abc');
@@ -85,4 +85,19 @@ test('findDuplicates and search', () => {
   assert.ok(linkMatches(links[1], 'helmet'));
   assert.ok(linkMatches(links[0], 'youtube'));
   assert.ok(!linkMatches(links[0], 'armor'));
+});
+
+test('reference link on an image: optional, http(s) only, max 2000 characters', () => {
+  assert.deepEqual(referenceLink(''), { url: null });
+  assert.deepEqual(referenceLink('   '), { url: null });
+  assert.deepEqual(referenceLink(' https://www.artstation.com/artwork/abc '), { url: 'https://www.artstation.com/artwork/abc' });
+  assert.deepEqual(referenceLink('http://example.com/a?b=1#c'), { url: 'http://example.com/a?b=1#c' });
+  assert.deepEqual(referenceLink('artstation.com/artwork/abc'), { url: 'https://artstation.com/artwork/abc' });
+  assert.deepEqual(referenceLink('example.com:8080/x'), { url: 'https://example.com:8080/x' });
+  for (const bad of ['javascript:alert(1)', 'ftp://example.com/a', 'data:text/html,hi', 'mailto:me@example.com', 'file:///etc/passwd',
+    'hello', 'two words.com', 'https://', 'localhost']) {
+    assert.ok(referenceLink(bad).error, bad);
+  }
+  assert.equal(referenceLink('https://example.com/' + 'a'.repeat(1980)).url.length, 2000);
+  assert.match(referenceLink('https://example.com/' + 'a'.repeat(1981)).error, /too long/);
 });

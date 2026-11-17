@@ -157,6 +157,26 @@ export function embedInfo(url) {
   return null;
 }
 
+// ---------------- reference link on a character image ----------------
+
+export const REFERENCE_MAX = 2000;
+
+/**
+ * What was typed into a "Reference link" box, checked the way the database checks it.
+ * Returns { url } — the http(s) address, or null when the box was left empty —
+ * or { error } with a sentence to show. "artstation.com/x" gets https:// added.
+ */
+export function referenceLink(text) {
+  const s = String(text ?? '').trim();
+  if (!s) return { url: null };
+  // "site.com/x" and "site.com:8080" get https:// — but "javascript:…", "ftp://…" etc. are refused
+  const other = !/^https?:\/\//i.test(s) && /^[a-z][a-z0-9+.-]*:(?!\d)/i.test(s);
+  const u = other || /\s/.test(s) ? null : toUrl(/^https?:\/\//i.test(s) ? s : 'https://' + s);
+  if (!u || !u.hostname.includes('.')) return { error: 'Please enter a web address starting with http:// or https://' };
+  if (u.href.length > REFERENCE_MAX) return { error: `That link is too long (the limit is ${REFERENCE_MAX} characters).` };
+  return { url: u.href };
+}
+
 // ---------------- duplicate check ----------------
 
 /**

@@ -6,6 +6,7 @@ import { loadThumbs } from '../thumbs.js';
 import { pasteButton } from '../paste.js';
 import { tagInput } from './tag-input.js';
 import { openLightbox } from './lightbox.js';
+import { openReferenceDialog, referenceButton } from './reference.js';
 import { addImages, pickFiles } from '../upload.js';
 import { go, rerender, setPasteTarget } from '../nav.js';
 
@@ -26,7 +27,10 @@ export function renderDetail(root, id) {
       h('button.thumb-open', { 'aria-label': `Open image ${idx + 1}`, onclick: () => openLightbox(c.images, idx) },
         h('img', { alt: '', loading: 'lazy', 'data-path': im.thumb_path || im.path, style: `aspect-ratio:${im.width}/${im.height}` })),
       im === cover && c.images.length > 1 ? h('span.cover-badge', 'Cover') : null,
+      referenceButton(im),
       h('div.thumb-actions',
+        h('button.icon-btn.small', { title: im.reference_url ? 'Edit reference link' : 'Add reference link',
+          'aria-label': im.reference_url ? 'Edit reference link' : 'Add reference link', onclick: () => openReferenceDialog([im], rerender) }, icon('link')),
         im !== cover ? h('button.icon-btn.small', { title: 'Use as cover', 'aria-label': 'Use as cover image', onclick: () => setCover(c, im) }, icon('cover')) : null,
         h('button.icon-btn.small.danger', { title: 'Delete image', 'aria-label': 'Delete image', onclick: () => removeImage(c, im) }, icon('trash'))),
     )),
