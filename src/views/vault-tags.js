@@ -17,7 +17,7 @@ export function renderVaultTags(root) {
   const head = h('header.page-head',
     h('div.titleblock',
       h('p.eyebrow', `Link Vault · ${plural(tags.length, 'tag')}`),
-      h('h1.title', 'Vault tags', h('span.title-dot', '.'))),
+      h('h1.title', 'Vault tags')),
     h('p.muted.page-note', 'These tags are only for links. Character tags live on the Characters Tags page.'));
   const body = !tags.length
     ? h('div.empty',

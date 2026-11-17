@@ -23,7 +23,7 @@ export function renderTags(root) {
   const head = h('header.page-head',
     h('div.titleblock',
       h('p.eyebrow', `Characters · ${plural(nTags, 'tag')} · ${plural(nGroups, 'group')}`),
-      h('h1.title', 'Tags', h('span.title-dot', '.'))),
+      h('h1.title', 'Tags')),
     h('div.actions',
       h('button.btn', { onclick: () => newGroup() }, icon('plus'), 'New group'),
       h('button.btn.primary', { onclick: () => newTag() }, 'New tag')));

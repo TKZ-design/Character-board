@@ -43,7 +43,7 @@ export function renderLogin(root, { pendingUrl = null } = {}) {
     h('main.login',
       h('div.login-card',
         h('p.eyebrow', 'Private collection'),
-        h('h1.title', 'Stash', h('span.title-dot', '.')),
+        h('h1.title', 'Stash'),
         h('p.muted', 'Your private stash for character references and saved links. Sign in with your email to continue.'),
         pendingUrl ? h('p.notice', { role: 'status' }, 'Log in to save ', h('strong', domainOf(pendingUrl) || 'your link'), ' to your Link Vault — it’ll be waiting for you.') : null,
         step1, step2,
