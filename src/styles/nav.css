@@ -83,3 +83,16 @@ body:not(.has-nav) .toasts { bottom: 16px; }
 .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 4px 0 10px; }
 .section-head h2 { font-size: 1.25rem; }
 .more-btn { margin-top: 8px; }
+
+/* ---------- "N new in Unsorted" banner: above the tab bar, never over the end of the list ---------- */
+.banner {
+  position: fixed; z-index: 45; left: calc(var(--rail-w) + var(--pad)); right: var(--pad); bottom: calc(var(--bar-total) + 12px);
+  max-width: 560px; margin: 0 auto;
+  display: flex; align-items: center; gap: 8px; padding: 6px 4px 6px 14px;
+  background: var(--card); border: 1px solid var(--accent); border-radius: var(--r-card);
+}
+.banner-text { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--text); text-decoration: none; font-weight: 600; line-height: 1.25; }
+.banner-text .icon { color: var(--accent); }
+.banner .btn { flex: none; }
+body.has-banner #view { padding-bottom: calc(var(--bar-total) + 104px); }
+@media (max-width: 380px) { .banner { padding-left: 10px; } .banner-text .icon { display: none; } }

@@ -1,6 +1,6 @@
 import './style.css';
 import { h, icon, errorToast, toast } from './ui.js';
-import { api, setApi, state, randomCharacter, randomLink, getPref, setPref } from './state.js';
+import { api, setApi, state, randomCharacter, randomLink, getPref, setPref, mergeLinks, initUnsortedSeen, markUnsortedSeen } from './state.js';
 import { setRerender, setPasteTarget, getPasteTarget, go } from './nav.js';
 import { filesFromPaste } from './upload.js';
 import { parseUrl } from './links.js';
@@ -10,6 +10,7 @@ import { renderMore } from './views/more.js';
 import { renderRecent } from './views/recent.js';
 import { renderTabbar } from './views/tabbar.js';
 import { pageHead } from './views/page-head.js';
+import { updateBanner } from './views/unsorted-banner.js';
 import { moreMenu, iconButton, searchBar } from './views/menu.js';
 import { isSearchOpen, toggleSearch, openSearch } from './search.js';
 import { renderGrid, filterChips } from './views/grid.js';
@@ -169,6 +170,8 @@ function render() {
   headerEl.replaceWith(newHeader);
   headerEl = newHeader;
   renderView();
+  if (r.view === 'links' && state.vaultScope === 'unsorted') markUnsortedSeen(); // you are looking at them
+  updateBanner();
   if (hadFocus) newHeader.querySelector('#search')?.focus();
   // chips: stay where they were while you tap them; on a new screen, bring the lit one into view
   const chips = newHeader.querySelector('.chiprow-scroll');
@@ -291,6 +294,7 @@ async function loadLinks() {
     state.folders = folders;
     state.vaultTags = vaultTags.map((t) => ({ id: t.id, name: t.name }));
     state.linksReady = true;
+    initUnsortedSeen();
   } catch (e) {
     console.error(e);
     state.links = []; state.folders = []; state.vaultTags = [];
@@ -333,6 +337,28 @@ async function onUser(user) {
     fillPendingPreviews(render);
   }
 }
+
+// ---------------- coming back to the app: pick up links saved meanwhile (Quick Save, another device) ----------------
+let refreshing = false;
+let lastRefresh = 0;
+
+async function refreshOnReturn() {
+  if (!state.user || state.linksReady !== true || refreshing || document.visibilityState === 'hidden') return;
+  if (Date.now() - lastRefresh < 1500) return; // the same return can fire several events
+  refreshing = true;
+  try {
+    const changed = mergeLinks(await api.listLinks());
+    lastRefresh = Date.now();
+    if (!changed) return;
+    // never redraw under an open dialog (a half-filled form); the lists just catch up next time
+    const view = route().view;
+    if (!document.querySelector('dialog[open]') && ['links', 'recent'].includes(view)) render();
+    else updateBanner();
+  } catch (e) { console.error(e); } finally { refreshing = false; }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshOnReturn(); });
+window.addEventListener('pageshow', (e) => { if (e.persisted) refreshOnReturn(); });
+window.addEventListener('focus', refreshOnReturn);
 
 async function boot() {
   if (import.meta.env.DEV || import.meta.env.VITE_ALLOW_MOCK === '1') {

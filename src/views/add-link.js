@@ -1,5 +1,5 @@
 import { h, icon, modal, toast, errorToast } from '../ui.js';
-import { api, state, linkTitle, saveLinkTags, saveLinkCharacters, VAULT_TAGS, lastFolder, setLastFolder } from '../state.js';
+import { api, state, linkTitle, saveLinkTags, saveLinkCharacters, VAULT_TAGS, lastFolder, setLastFolder, rememberOwnLink } from '../state.js';
 import { folderSelect, folderHref } from './folder-ui.js';
 import { folderById, pathText, UNSORTED } from '../folders.js';
 import { parseUrl, cleanUrl, platformOf, platformLabel, domainOf, findDuplicates, youtubeInfo, youtubeThumb } from '../links.js';
@@ -210,6 +210,7 @@ export function openAddLink({ url = '', characterIds = [], hint = '', folderId }
           folder_id: folder.value(),
         });
         setLastFolder(l.folder_id);
+        rememberOwnLink(l.id); // a link you added yourself never shows up as "new in Unsorted"
         state.links.unshift(l);
         const after = [];
         after.push(saveLinkTags(l, tags.value()).catch(errorToast));

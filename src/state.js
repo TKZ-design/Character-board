@@ -2,6 +2,7 @@ import { realApi } from './api.js';
 import { tagKey, matchesSearch, normName } from './text.js';
 import { linkMatches } from './links.js';
 import { subtreeIds, folderById, pathText, UNSORTED } from './folders.js';
+import { newInUnsorted, advanceSeen, firstSeen } from './unsorted.js';
 
 export let api = realApi;
 export function setApi(a) { api = a; }
@@ -345,4 +346,45 @@ export function randomLink(excludeId) {
   const pool = filteredLinks();
   const choices = pool.length > 1 ? pool.filter((l) => l.id !== excludeId) : pool;
   return choices[Math.floor(Math.random() * choices.length)] || null;
+}
+
+// ---------------- "N new in Unsorted" (remembered on this device only) ----------------
+
+const SEEN_KEY = 'unsorted-seen';   // ISO time of the newest Unsorted link you have looked at
+const OWN_KEY = 'own-links';        // ids of links you added yourself in this app (they never count as "new")
+
+const ownLinkIds = () => getPref(OWN_KEY, '').split(',').filter(Boolean);
+export function rememberOwnLink(id) { setPref(OWN_KEY, [id, ...ownLinkIds()].slice(0, 100).join(',')); }
+
+/** Call once links are loaded: the first run on a device starts from "now", so the banner stays quiet. */
+export function initUnsortedSeen() {
+  if (!getPref(SEEN_KEY, '')) setPref(SEEN_KEY, firstSeen(state.links, new Date().toISOString()));
+}
+
+/** Links that landed in Unsorted since you last looked. */
+export function newUnsortedLinks() {
+  if (!state.linksReady) return [];
+  return newInUnsorted(linksInScope(UNSORTED), getPref(SEEN_KEY, ''), ownLinkIds());
+}
+
+/** You looked at Unsorted (or dismissed the banner, or moved the new links): don't announce these again. */
+export function markUnsortedSeen(extra = []) {
+  setPref(SEEN_KEY, advanceSeen(getPref(SEEN_KEY, ''), [...linksInScope(UNSORTED), ...extra]));
+}
+
+/**
+ * Fold a fresh list from the server into state.links, keeping the objects you already hold
+ * (so an open page isn't disturbed). Returns true if anything changed.
+ */
+export function mergeLinks(rows) {
+  const have = new Map(state.links.map((l) => [l.id, l]));
+  const sig = (l) => [l.updated_at, l.folder_id ?? '', (l.tag_ids || []).join(), (l.character_ids || []).join()].join('|');
+  let changed = rows.length !== state.links.length;
+  state.links = rows.map((row) => {
+    const cur = have.get(row.id);
+    if (!cur) { changed = true; return row; }
+    if (sig(cur) !== sig(row)) { changed = true; Object.assign(cur, row); }
+    return cur;
+  });
+  return changed;
 }

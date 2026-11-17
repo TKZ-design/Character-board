@@ -113,6 +113,17 @@ async function seed() {
 }
 
 let seeded;
+
+// Dev only: pretend Quick Save (the iPhone Shortcut) just saved a link, e.g. from the browser console:
+//   __mockQuickSave('https://example.com/a-new-link', 'A new link')
+if (typeof window !== 'undefined') {
+  window.__mockQuickSave = (url = 'https://example.com/saved-by-shortcut', title = 'Saved by the Shortcut') => {
+    const t = new Date().toISOString();
+    vault.unshift({ id: crypto.randomUUID(), user_id: user.id, folder_id: null, url, title, description: '', site_name: '', platform: platformOf(url),
+      thumbnail_url: null, cover_path: null, cover_thumb_path: null, cover_width: null, cover_height: null, notes: '', status: 'todo',
+      is_favorite: false, preview_status: 'none', preview_fetched_at: null, created_at: t, updated_at: t });
+  };
+}
 export const mockApi = {
   async getUser() { await (seeded ||= seed()); return user; },
   onAuthChange() {},
