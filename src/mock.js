@@ -113,6 +113,7 @@ async function seed() {
 }
 
 let seeded;
+let authCb = () => {};
 
 // Dev only: pretend Quick Save (the iPhone Shortcut) just saved a link, e.g. from the browser console:
 //   __mockQuickSave('https://example.com/a-new-link', 'A new link')
@@ -126,10 +127,10 @@ if (typeof window !== 'undefined') {
 }
 export const mockApi = {
   async getUser() { await (seeded ||= seed()); return user; },
-  onAuthChange() {},
+  onAuthChange(cb) { authCb = cb; },
   async sendMagicLink() { await delay(); },
   async verifyCode() { await delay(); },
-  async signOut() { location.reload(); },
+  async signOut() { authCb(null); }, // shows the login screen; reloading the page signs the demo user back in
   async listCharacters() { await delay(); return chars.map(withTags); },
   async createCharacter(f) {
     const c = { id: crypto.randomUUID(), user_id: user.id, source: '', notes: '', links: [], cover_image_id: null,

@@ -137,7 +137,7 @@ let lastHash = '';
 
 function render() {
   document.body.classList.toggle('has-nav', !!state.user);
-  if (!state.user) { renderLogin(app, { pendingUrl: peekPendingAdd() }); return; }
+  if (!state.user) { updateBanner(); renderLogin(app, { pendingUrl: peekPendingAdd() }); return; }
   const r = route();
   // No Home screen any more: an empty or old address opens the section you used last
   if (!(r.view in ROUTES)) { location.replace(homeHash()); return; }

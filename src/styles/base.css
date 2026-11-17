@@ -77,14 +77,14 @@ select option { color: initial; }
 .field-error:empty { display: none; }
 
 /* ---------- segmented choices (theme, status, grid/list) ---------- */
-.segmented { display: inline-flex; gap: 2px; padding: 3px; margin: 0; min-width: 0; background: var(--chip); border: 1px solid var(--line); border-radius: var(--pill); }
+.segmented { display: inline-flex; gap: 2px; padding: 2px; margin: 0; min-width: 0; background: var(--chip); border: 1px solid var(--line); border-radius: var(--pill); }
 .segmented label { position: relative; display: inline-flex; cursor: pointer; }
 .segmented label input { position: absolute; opacity: 0; inset: 0; margin: 0; width: 100%; height: 100%; cursor: pointer; }
 .segmented label span, .seg-btn {
-  display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 16px; border-radius: var(--pill);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; min-width: 44px; padding: 0 16px; border-radius: var(--pill);
   font: 500 14px/1 var(--sans); color: var(--muted);
 }
-.seg-btn { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 16px; border-radius: var(--pill); font: 500 14px/1 var(--sans); color: var(--muted); }
+.seg-btn { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; min-width: 44px; padding: 0 16px; border-radius: var(--pill); font: 500 14px/1 var(--sans); color: var(--muted); }
 .seg-btn:hover { color: var(--text); }
 .segmented input:checked + span, .seg-btn[aria-pressed='true'], .seg-btn.on { background: var(--accent); color: var(--on-accent); font-weight: 600; }
 .segmented input:focus-visible + span, .seg-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -97,11 +97,12 @@ select option { color: initial; }
   font-size: 13px; font-weight: 500; color: var(--text); background: var(--chip);
   border-radius: var(--pill); text-decoration: none; border: 0;
 }
+a.chip { min-height: 44px; padding: 0 16px; font-size: 14px; }
 a.chip:hover { background: var(--line); }
 .chip.removable { padding-right: 2px; gap: 0; }
 .chip.removable button {
   all: unset; cursor: pointer; display: inline-grid; place-items: center;
-  width: 28px; height: 28px; border-radius: 50%; color: var(--muted);
+  width: 44px; height: 44px; margin: -7px -4px -7px -8px; border-radius: 50%; color: var(--muted);
 }
 .chip.removable button:hover { color: var(--text); background: var(--line); }
 .chip.removable button:focus-visible { outline: 2px solid var(--accent); }
@@ -116,7 +117,7 @@ a.chip:hover { background: var(--line); }
 }
 .tag-input:focus-within { border-color: var(--accent); }
 .tag-input .chip { background: var(--card); }
-.tag-input .tag-entry { background: transparent; border: 0; border-radius: 0; padding: 0 4px; min-height: 30px; flex: 1; min-width: 110px; width: auto; }
+.tag-input .tag-entry { background: transparent; border: 0; border-radius: 0; padding: 0 4px; min-height: 44px; flex: 1; min-width: 110px; width: auto; }
 .tag-input .tag-entry:focus-visible { outline: none; }
 
 /* ---------- menus (the ⋯ dropdowns) ---------- */

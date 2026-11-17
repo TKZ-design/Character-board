@@ -42,10 +42,9 @@
 .result-count { margin: 0; color: var(--muted); font-size: 14px; }
 .viewbar-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .sort-select { width: auto; max-width: 170px; }
-.view-toggle { padding: 3px; }
 .view-btn {
   all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
-  min-height: 38px; min-width: 38px; justify-content: center; padding: 0 12px; border-radius: var(--pill);
+  min-height: 44px; min-width: 44px; justify-content: center; padding: 0 12px; border-radius: var(--pill);
   color: var(--muted); font: 500 14px/1 var(--sans);
 }
 .view-btn:hover { color: var(--text); }
@@ -205,7 +204,7 @@
 .breadcrumb ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0 2px; }
 .breadcrumb li { display: inline-flex; align-items: center; min-width: 0; color: var(--muted); font-size: 13px; }
 .breadcrumb li + li::before { content: '›'; padding: 0 8px; color: var(--muted); }
-.breadcrumb a { color: var(--muted); text-decoration: none; min-height: 32px; display: inline-flex; align-items: center; overflow-wrap: anywhere; }
+.breadcrumb a { color: var(--muted); text-decoration: none; min-height: 44px; min-width: 44px; padding: 0 4px; display: inline-flex; align-items: center; justify-content: center; overflow-wrap: anywhere; }
 .breadcrumb a:hover { color: var(--text); text-decoration: underline; }
 .breadcrumb [aria-current='page'] { color: var(--text); overflow-wrap: anywhere; }
 .inline-crumbs li { font-size: 13px; }
@@ -248,10 +247,10 @@
 .tree-row:hover { background: var(--chip); }
 .tree-row[aria-current='page'] { background: var(--chip); font-weight: 600; }
 .tree-row[aria-current='page'] .icon { color: var(--accent); }
-.tree-toggle { flex: none; width: 32px; height: 44px; display: inline-grid; place-items: center; border: 0; border-radius: 10px; background: none; color: var(--muted); cursor: pointer; padding: 0; }
+.tree-toggle { flex: none; width: 44px; height: 44px; display: inline-grid; place-items: center; border: 0; border-radius: 10px; background: none; color: var(--muted); cursor: pointer; padding: 0; }
 .tree-toggle:hover { color: var(--text); background: var(--chip); }
 .tree-toggle .icon { width: 14px; height: 14px; transition: transform 0.15s; }
-.tree-toggle-space { flex: none; width: 32px; }
+.tree-toggle-space { flex: none; width: 44px; }
 .tree-fixed .tree-toggle-space { width: 0; margin-left: -6px; }
 .tree-empty { margin: 4px 8px 8px; }
 .tree-new { align-self: flex-start; margin-top: 8px; }
