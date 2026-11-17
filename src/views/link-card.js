@@ -80,6 +80,9 @@ export function doneButton(l, after) {
 
 const statusText = (l) => (l.status === 'done' ? 'Done' : 'To watch');
 
+/** "YouTube" for known platforms, else the site's address — what a row says first. */
+const sourceName = (l) => (l.platform && l.platform !== 'web' ? platformLabel(l.platform) : domainOf(l.url) || platformLabel('web'));
+
 function metaLine(l) {
   const tags = vaultTagNamesOf(l);
   return [platformLabel(l.platform), statusText(l), ...tags.slice(0, 3), tags.length > 3 ? `+${tags.length - 3}` : null].filter(Boolean).join(' · ');
@@ -108,16 +111,16 @@ export function linkCard(l, after, { showPath = false, select = null } = {}) {
   const cls = `${l.status === 'done' ? '.is-done' : ''}${select ? '.selectable' : ''}${select?.selected ? '.selected' : ''}`;
   return h(`article.lcard${cls}`, { 'data-id': l.id },
     h('a.lcard-media-link', { href, tabindex: '-1', 'aria-hidden': 'true', onclick: sel.onclick }, selBadge(select), linkMedia(l)),
+    select ? null : h('div.card-btns', doneButton(l, after), starButton(l, after)),
     h('div.caption',
       h('a.card-link', { href, ...sel },
         h('h3.lcard-title', linkTitle(l)),
         h('p.card-source', domainOf(l.url)),
         showPath ? pathLine(l) : null,
-        h('p.card-meta', metaLine(l))),
-      select ? null : h('div.card-btns', doneButton(l, after), starButton(l, after))));
+        h('p.card-meta', metaLine(l)))));
 }
 
-/** Row for the compact list. */
+/** Row for the compact list: picture on the left, title, "platform · status". */
 export function linkRow(l, after, { showPath = false, select = null } = {}) {
   const sel = selectHandlers(l, select);
   return listRow({
@@ -125,8 +128,8 @@ export function linkRow(l, after, { showPath = false, select = null } = {}) {
     cls: `${l.status === 'done' ? '.is-done' : ''}${select ? '.selectable' : ''}${select?.selected ? '.selected' : ''}`,
     thumb: [selBadge(select), linkMedia(l, { size: 'row' })],
     title: linkTitle(l),
-    sub: showPath ? [domainOf(l.url), h('span.row-path', icon('folder'), linkPath(l))] : domainOf(l.url),
-    meta: metaLine(l),
+    sub: `${sourceName(l)} · ${statusText(l)}`,
+    meta: showPath ? h('span.row-path', icon('folder'), linkPath(l)) : null,
     onclick: sel.onclick,
     pressed: sel['aria-pressed'],
     buttons: select ? [] : [doneButton(l, after), starButton(l, after)],

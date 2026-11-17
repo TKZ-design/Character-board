@@ -105,6 +105,9 @@ async function seed() {
     const name = conv.linkFolder.get(l.id);
     l.folder_id = name ? folders.find((f) => !f.parent_id && tagKey(f.name) === tagKey(name)).id : null;
   }
+  // two nested folders, so the demo shows the "Folders" grid inside "Tutorial"
+  const tutorial = folders.find((f) => tagKey(f.name) === tagKey('Tutorial'));
+  if (tutorial) ['Armor', 'Anatomy'].forEach((name, i) => folders.push({ id: crypto.randomUUID(), name, parent_id: tutorial.id, position: i }));
   for (const x of conv.vaultLinkTags) vaultTags.push({ link_id: x.link_id, tag_id: ensureVaultTag(x.name).id });
   tags = tags.filter((t) => !conv.deleteTagIds.includes(t.id));
 }

@@ -10,15 +10,15 @@ export function viewBar({ text, sort, view, onSort, onView, nameLabel = 'Name', 
     Object.entries(labels).map(([value, label]) => h('option', { value, selected: value === sort }, label)));
   const viewBtn = (value, label) =>
     h(`button.view-btn${view === value ? '.on' : ''}`, {
-      type: 'button', 'aria-pressed': String(view === value), title: `${label} view`,
+      type: 'button', 'aria-pressed': String(view === value), title: `${label} view`, 'aria-label': `${label} view`,
       onclick: () => { if (view !== value) onView(value); },
-    }, icon(value), h('span', label));
+    }, icon(value), h('span.view-label', label));
   return h('div.viewbar',
     h('p.result-count', text),
     h('div.viewbar-tools',
       extra,
-      h('label.sort', h('span.search-label', 'Sort'), select),
-      h('div.view-toggle', { role: 'group', 'aria-label': 'View' }, viewBtn('grid', 'Grid'), viewBtn('list', 'List'))));
+      h('label.sort', h('span.sr-only', 'Sort by'), select),
+      h('div.view-toggle.segmented', { role: 'group', 'aria-label': 'View' }, viewBtn('grid', 'Grid'), viewBtn('list', 'List'))));
 }
 
 /**

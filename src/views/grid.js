@@ -3,40 +3,35 @@ import { go } from '../nav.js';
 import { api, state, filtered, hasFilters, coverOf, toggleFavorite, groupedTags, tagCounts, tagNamesOf, sortItems, setPref } from '../state.js';
 import { openNewCharacter } from './new-character.js';
 import { viewBar, listRow } from './viewbar.js';
+import { chipRow } from './menu.js';
 
-/** Tag / favorites filters + search, shown under the title on the board. */
-export function filterBar(searchInput, rerender) {
+/** One sideways-scrolling row of chips: All, Favorites, then the tags (grouped, in order). */
+export function filterChips(rerender) {
   const counts = tagCounts();
   // only tags that are actually used, organised by group
   const sections = groupedTags({ filter: (t) => counts.get(t.id) > 0 });
   const labelled = sections.some((s) => s.group);
   const favCount = state.characters.filter((c) => c.is_favorite).length;
+  const none = !state.tags.size && !state.favoritesOnly;
   const tagButton = (t) =>
     h(`button.filter${state.tags.has(t.id) ? '.on' : ''}`, {
-      'aria-pressed': String(state.tags.has(t.id)),
+      type: 'button', 'aria-pressed': String(state.tags.has(t.id)),
       onclick: () => { state.tags.has(t.id) ? state.tags.delete(t.id) : state.tags.add(t.id); rerender(); },
     }, t.name, h('span.count', counts.get(t.id)));
-  const filters = state.characters.length
-    ? h('div.filters', { role: 'group', 'aria-label': 'Filter by tag' },
-        h(`button.filter${state.tags.size ? '' : '.on'}`, {
-          'aria-pressed': String(!state.tags.size),
-          title: 'Show all tags',
-          onclick: () => { state.tags.clear(); rerender(); },
-        }, 'All'),
-        sections.map((s) =>
-          h('div.filter-cluster', { role: 'group', 'aria-label': s.group ? s.group.name : 'Other tags' },
-            labelled ? h('span.filter-group', { 'aria-hidden': 'true' }, s.group ? s.group.name : 'Other') : null,
-            s.tags.map(tagButton))),
-        h('span.filter-sep', { 'aria-hidden': 'true' }),
-        h(`button.filter.fav-filter${state.favoritesOnly ? '.on' : ''}`, {
-          'aria-pressed': String(state.favoritesOnly),
-          title: 'Show favorites only',
-          onclick: () => { state.favoritesOnly = !state.favoritesOnly; rerender(); },
-        }, icon('star'), 'Favorites', h('span.count', favCount)))
-    : h('div.filters');
-  return h('nav.filterbar', { 'aria-label': 'Filters' },
-    filters,
-    h('label.search', h('span.search-label', 'Search'), searchInput));
+  return chipRow('Filter characters', [
+    h(`button.filter${none ? '.on' : ''}`, {
+      type: 'button', 'aria-pressed': String(none), title: 'Show everything',
+      onclick: () => { state.tags.clear(); state.favoritesOnly = false; rerender(); },
+    }, 'All'),
+    h(`button.filter.fav-filter${state.favoritesOnly ? '.on' : ''}`, {
+      type: 'button', 'aria-pressed': String(state.favoritesOnly), title: 'Show favorites only',
+      onclick: () => { state.favoritesOnly = !state.favoritesOnly; rerender(); },
+    }, icon('star'), 'Favorites', h('span.count', favCount)),
+    sections.map((s) => [
+      labelled ? h('span.filter-group', s.group ? s.group.name : 'Other') : null,
+      s.tags.map(tagButton),
+    ]),
+  ]);
 }
 
 export function renderGrid(root, rerender) {
@@ -56,17 +51,17 @@ export function renderGrid(root, rerender) {
   if (!state.characters.length) {
     body = h('div.empty',
       h('h2', 'No characters yet'),
-      h('p.muted', 'Create your first one — or just drop, paste (Ctrl+V) or share an image to this page.'),
-      h('button.btn.primary', { onclick: () => openNewCharacter() }, 'Add character'));
+      h('p.muted', 'Create your first one with the + button — or just drop, paste (Ctrl+V) or share an image to this page.'),
+      h('button.btn.primary', { onclick: () => openNewCharacter() }, 'New character'));
   } else if (!list.length) {
     body = h('div.empty',
       h('h2', 'No matches'),
       h('p.muted', 'Nothing fits the current search and filters.'),
-      h('button.btn', { onclick: () => { state.search = ''; state.tags.clear(); state.favoritesOnly = false; document.querySelector('#search')?.value && (document.querySelector('#search').value = ''); rerender(); } }, 'Clear filters'));
+      h('button.btn', { onclick: () => { state.search = ''; state.tags.clear(); state.favoritesOnly = false; rerender(); } }, 'Clear filters'));
   } else {
     body = state.charView === 'list'
       ? h('ul.lrows.char-rows', list.map((c) => row(c, rerender)))
-      : h('div.masonry', list.map((c) => card(c, rerender)));
+      : h('div.cgrid', list.map((c) => card(c, rerender)));
     loadThumbs(body, list);
   }
 
@@ -147,24 +142,26 @@ function row(c, rerender) {
   });
 }
 
+/** "source · N images" */
+function cardMeta(c) {
+  const n = c.images.length;
+  return [c.source, `${n} image${n === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
+}
+
 function card(c, rerender) {
   const cover = coverOf(c);
   const media = cover
-    ? h('div.card-media', { style: `aspect-ratio:${cover.width || 3}/${cover.height || 4}` },
-        h('img', { alt: '', loading: 'lazy', decoding: 'async', 'data-path': cover.thumb_path || cover.path }))
+    ? h('div.card-media', h('img', { alt: '', loading: 'lazy', decoding: 'async', 'data-path': cover.thumb_path || cover.path }))
     : h('div.card-media.placeholder', 'No image');
-  const star = starFor(c, rerender);
   const { selIdx, onLink } = compareClick(c, rerender);
   return h(`div.card${state.compareMode ? '.selectable' : ''}${selIdx >= 0 ? '.selected' : ''}`, { 'data-id': c.id },
     state.compareMode ? h('span.sel-badge', { 'aria-hidden': 'true' }, selIdx >= 0 ? String(selIdx + 1) : '') : null,
     // the image is a second, mouse-only way into the same link (keyboard/screen readers use the name)
     h('a.card-media-link', { href: `#/c/${c.id}`, onclick: onLink, tabindex: '-1', 'aria-hidden': 'true' }, media),
-    h('div.caption',
-      h('a.card-link', { href: `#/c/${c.id}`, onclick: onLink, 'aria-pressed': state.compareMode ? String(selIdx >= 0) : null },
-        h('h3.card-name', c.name),
-        c.source ? h('p.card-source', c.source) : null,
-        h('p.card-meta', metaText(c))),
-      star));
+    h('a.card-link', { href: `#/c/${c.id}`, onclick: onLink, 'aria-pressed': state.compareMode ? String(selIdx >= 0) : null },
+      h('h3.card-name', c.name),
+      h('p.card-meta', cardMeta(c))),
+    starFor(c, rerender));
 }
 
 async function loadThumbs(container, list) {

@@ -10,18 +10,19 @@ import { renderMore } from './views/more.js';
 import { renderRecent } from './views/recent.js';
 import { renderTabbar } from './views/tabbar.js';
 import { pageHead } from './views/page-head.js';
-import { renderGrid, filterBar } from './views/grid.js';
+import { moreMenu, iconButton, searchBar } from './views/menu.js';
+import { isSearchOpen, toggleSearch, openSearch } from './search.js';
+import { renderGrid, filterChips } from './views/grid.js';
 import { renderDetail, resetEditing } from './views/detail.js';
 import { openNewCharacter } from './views/new-character.js';
 import { renderCompare } from './views/compare.js';
 import { renderTags } from './views/tags.js';
 import { openImageChooser } from './views/image-chooser.js';
-import { renderVault, vaultMasthead, scopeFromArg, parentHref } from './views/vault.js';
+import { renderVault, vaultHeader, scopeFromArg, parentHref } from './views/vault.js';
 import { renderVaultTags } from './views/vault-tags.js';
 import { renderLinkDetail, resetLinkEditing } from './views/link-detail.js';
-import { openAddLink, pasteLinkButton } from './views/add-link.js';
+import { openAddLink } from './views/add-link.js';
 import { fillPendingPreviews } from './previews.js';
-import { pasteButton } from './paste.js';
 import { takeSharedFiles } from './share.js';
 
 const app = document.getElementById('app');
@@ -57,48 +58,34 @@ function randomButton() {
   return h('button.icon-btn', { type: 'button', onclick: goRandom, title: 'Random inspiration (R)', 'aria-label': 'Random' }, icon('dice'));
 }
 
-function tagsLink(r) {
-  return h(`a.btn.tags-link${r.view === 'tags' ? '.on' : ''}`, { href: '#/tags', title: 'Manage character tags and tag groups (T)', 'aria-current': r.view === 'tags' ? 'page' : null }, 'Tags');
-}
-function vaultTagsLink(r) {
-  return h(`a.btn.tags-link${r.view === 'vault-tags' ? '.on' : ''}`, { href: '#/vault-tags', title: 'Manage Vault tags (T)', 'aria-current': r.view === 'vault-tags' ? 'page' : null }, 'Tags');
-}
-
-function characterActions(r) {
-  const onGrid = r.view === 'characters';
-  return h('div.actions',
-    tagsLink(r),
-    randomButton(),
-    onGrid && state.characters.length
-      ? h(`button.btn.compare-btn${state.compareMode ? '.on' : ''}`, {
-          'aria-pressed': String(state.compareMode),
-          title: 'Pick 2–3 characters to view side by side',
-          onclick: () => { state.compareMode = !state.compareMode; state.compareSel = []; render(); },
-        }, 'Compare')
-      : null);
-}
-
-function linkActions(r) {
-  return h('div.actions', vaultTagsLink(r), randomButton());
+function charactersHeader(r) {
+  const open = isSearchOpen('characters');
+  return pageHead({
+    title: 'Characters',
+    actions: [
+      iconButton('search', 'Search (/)', () => toggleSearch('characters', render), { on: open }),
+      randomButton(),
+      moreMenu([
+        { ic: 'columns', label: state.compareMode ? 'Stop comparing' : 'Compare characters', pressed: state.compareMode, disabled: !state.characters.length,
+          run: () => { state.compareMode = !state.compareMode; state.compareSel = []; render(); } },
+        { ic: 'tag', label: 'Manage tags', run: () => go('#/tags') },
+      ]),
+    ],
+    below: [
+      open ? searchBar({
+        value: state.search, placeholder: 'Name or source', label: 'Search characters',
+        oninput: (e) => { state.search = e.target.value; renderView(); },
+        onclose: () => toggleSearch('characters', render),
+      }) : null,
+      state.characters.length ? filterChips(render) : null,
+    ],
+  });
 }
 
 /** Each screen's own header (above the content). */
 function headerFor(r) {
-  if (r.view === 'characters') {
-    const searchInput = h('input#search', {
-      type: 'search', placeholder: 'Name or source', value: state.search,
-      oninput: (e) => { state.search = e.target.value; renderView(); },
-    });
-    const n = state.characters.length;
-    return h('header.masthead',
-      h('div.masthead-row',
-        h('div.titleblock',
-          h('p.eyebrow', `Collection · ${n} ${n === 1 ? 'entry' : 'entries'}`),
-          h('h1.title', 'Characters')),
-        characterActions(r)),
-      filterBar(searchInput, render));
-  }
-  if (r.view === 'links') return vaultMasthead(linkActions(r), render, renderView);
+  if (r.view === 'characters') return charactersHeader(r);
+  if (r.view === 'links') return vaultHeader({ rerender: render, renderView, onRandom: goRandom });
   if (r.view === 'recent') return pageHead({ title: 'Recent' });
   if (r.view === 'more') return pageHead({ title: 'More' });
   // detail pages, compare, tags: a back link
@@ -155,8 +142,10 @@ function render() {
   if (!(r.view in ROUTES)) { location.replace(homeHash()); return; }
   state.vaultScope = r.view === 'links' ? scopeFromArg(r.arg) : null; // the header's search box needs it
   const key = r.view + '/' + r.arg;
-  if (key !== lastRoute) {
+  const keyChanged = key !== lastRoute;
+  if (keyChanged) {
     const prevView = lastRoute.split('/')[0];
+    if (prevView !== r.view) state.searchOpen = false; // a search box open in one screen does not follow you to the next
     resetEditing();
     resetLinkEditing();
     if (r.view !== 'characters') { state.compareMode = false; state.compareSel = []; }
@@ -173,6 +162,7 @@ function render() {
   const newNav = renderTabbar(r.view);
   // keep the search box focused while typing
   const hadFocus = document.activeElement?.id === 'search';
+  const chipScroll = headerEl.querySelector?.('.chiprow-scroll')?.scrollLeft || 0;
   if (!app.contains(viewEl)) app.replaceChildren(navEl, headerEl, viewEl);
   navEl.replaceWith(newNav);
   navEl = newNav;
@@ -180,6 +170,12 @@ function render() {
   headerEl = newHeader;
   renderView();
   if (hadFocus) newHeader.querySelector('#search')?.focus();
+  // chips: stay where they were while you tap them; on a new screen, bring the lit one into view
+  const chips = newHeader.querySelector('.chiprow-scroll');
+  if (chips) {
+    if (!keyChanged) chips.scrollLeft = chipScroll;
+    else chips.querySelector('.filter.on')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }
 }
 
 setRerender(render);
@@ -229,7 +225,7 @@ document.addEventListener('keydown', (e) => {
   if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
   const r = route();
   const inLinks = contextOf(r.view) === 'links';
-  if (e.key === '/') { const s = document.getElementById('search'); if (s) { e.preventDefault(); s.focus(); } }
+  if (e.key === '/') { if (['characters', 'links'].includes(r.view)) { e.preventDefault(); openSearch(r.view, render); } }
   else if (e.key === 'n') { e.preventDefault(); if (inLinks) openAddLink(); else openNewCharacter(); }
   else if (e.key === 'r') { e.preventDefault(); goRandom(); }
   else if (e.key === 't') { e.preventDefault(); go(inLinks ? '#/vault-tags' : '#/tags'); }

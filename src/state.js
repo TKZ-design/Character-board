@@ -31,7 +31,7 @@ export const state = {
   linkFilter: { search: '', tags: new Set(), status: '', favoritesOnly: false, platform: '' },
   charView: getPref('char-view', 'grid', VIEWS),
   charSort: getPref('char-sort', 'added', SORTS),
-  linkView: getPref('link-view', 'grid', VIEWS),
+  linkView: getPref('link-view', 'list', VIEWS),   // rows with the picture on the left; a saved choice wins
   linkSort: getPref('link-sort', 'added', SORTS),
   characters: [],         // each has tag_ids: [uuid]
   tagList: [],            // Character tags [{ id, name, group_id }]

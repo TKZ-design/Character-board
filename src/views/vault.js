@@ -1,9 +1,9 @@
-import { h, icon, toast, errorToast } from '../ui.js';
+import { h, icon, toast, errorToast, sheet } from '../ui.js';
 import {
   state, filteredLinks, linksInScope, hasLinkFilters, clearLinkFilters, sortItems, linkTitle, vaultTagCounts, sortedVaultTags,
   setPref, moveLinksTo, saveVaultOpen,
 } from '../state.js';
-import { parseUrl, platformLabel, PLATFORMS } from '../links.js';
+import { platformLabel, PLATFORMS } from '../links.js';
 import { UNSORTED, folderById, folderPath, childrenOf, flattenTree, folderCounts, pathText } from '../folders.js';
 import { openAddLink, pasteLinkButton } from './add-link.js';
 import { linkCard, linkRow } from './link-card.js';
@@ -12,6 +12,9 @@ import { folderHref, folderMenu, newFolder, pickFolder } from './folder-ui.js';
 import { loadThumbs } from '../thumbs.js';
 import { previewsUnavailable } from '../previews.js';
 import { go } from '../nav.js';
+import { moreMenu, chipRow, iconButton, searchBar } from './menu.js';
+import { pageHead } from './page-head.js';
+import { isSearchOpen, toggleSearch } from '../search.js';
 
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
@@ -30,87 +33,104 @@ export function parentHref(scope) {
   return folderHref(folderById(state.folders, scope)?.parent_id ?? null);
 }
 
-/** "Paste or type a link" — opens the Add dialog pre-filled. Pasting submits right away. */
-function quickAdd() {
-  const input = h('input', {
-    type: 'text', inputmode: 'url', placeholder: 'Paste or type a link…', autocomplete: 'off', autocapitalize: 'off',
-    spellcheck: false, enterkeyhint: 'go', 'aria-label': 'Link to add',
-  });
-  const submit = () => {
-    const url = parseUrl(input.value);
-    if (!url) { toast(input.value.trim() ? 'That doesn’t look like a link.' : 'Paste or type a link first.'); input.focus(); return; }
-    input.value = '';
-    input.blur();
-    openAddLink({ url });
-  };
-  input.addEventListener('paste', () => setTimeout(() => { if (parseUrl(input.value)) submit(); }, 0));
-  return h('form.quick-add', { onsubmit: (e) => { e.preventDefault(); submit(); } },
-    h('span.quick-add-icon', icon('plus')),
-    input,
-    h('button.btn', { type: 'submit' }, 'Add'));
-}
-
-function vaultFilterBar(searchInput, rerender) {
+const activeFilterCount = () => {
   const f = state.linkFilter;
-  const pool = linksInScope(state.vaultScope, { deep: true }); // counts for the current folder + subfolders
-  const counts = vaultTagCounts();
-  for (const id of counts.keys()) counts.set(id, 0);
-  for (const l of pool) for (const id of l.tag_ids || []) counts.set(id, (counts.get(id) || 0) + 1);
-  const tags = sortedVaultTags().filter((t) => counts.get(t.id) > 0 || f.tags.has(t.id));
-  const has = pool.length > 0 || hasLinkFilters();
-  const by = (pred) => pool.filter(pred).length;
-  const statusBtn = (value, label) => h(`button.filter${f.status === value ? '.on' : ''}`, {
-    type: 'button', 'aria-pressed': String(f.status === value),
-    onclick: () => { f.status = value; rerender(); },
-  }, label, value ? h('span.count', by((l) => l.status === value)) : null);
-  const platforms = Object.keys(PLATFORMS).filter((p) => pool.some((l) => l.platform === p) || f.platform === p);
-  const platform = h('select.group-select.platform-select', {
-    'aria-label': 'Filter by platform',
-    onchange: (e) => { f.platform = e.target.value; rerender(); },
-  },
-    h('option', { value: '', selected: !f.platform }, 'All platforms'),
-    platforms.map((p) => h('option', { value: p, selected: f.platform === p }, `${platformLabel(p)} (${by((l) => l.platform === p)})`)));
-  const tagButton = (t) => h(`button.filter${f.tags.has(t.id) ? '.on' : ''}`, {
-    type: 'button', 'aria-pressed': String(f.tags.has(t.id)),
-    onclick: () => { f.tags.has(t.id) ? f.tags.delete(t.id) : f.tags.add(t.id); rerender(); },
-  }, t.name, h('span.count', counts.get(t.id)));
+  return (f.status ? 1 : 0) + (f.favoritesOnly ? 1 : 0) + (f.platform ? 1 : 0) + f.tags.size;
+};
 
-  return h('nav.filterbar.vault-filters', { 'aria-label': 'Filters' },
-    has
-      ? h('div.filters', { role: 'group', 'aria-label': 'Filter links' },
-          statusBtn('', 'All'), statusBtn('todo', 'To watch'), statusBtn('done', 'Done'),
-          h('span.filter-sep', { 'aria-hidden': 'true' }),
-          h(`button.filter.fav-filter${f.favoritesOnly ? '.on' : ''}`, {
-            type: 'button', 'aria-pressed': String(f.favoritesOnly), title: 'Show favorites only',
-            onclick: () => { f.favoritesOnly = !f.favoritesOnly; rerender(); },
-          }, icon('star'), 'Favorites', h('span.count', by((l) => l.is_favorite))),
-          platforms.length > 1 ? [h('span.filter-sep', { 'aria-hidden': 'true' }), h('label.platform-filter', h('span.sr-only', 'Platform'), platform)] : null)
-      : h('div.filters'),
-    h('label.search', h('span.search-label', 'Search'), searchInput),
-    tags.length
-      ? h('div.filters.tag-filter-row', { role: 'group', 'aria-label': 'Filter by Vault tag' }, tags.map(tagButton))
-      : null);
+/** The Filter sheet: To watch / Done, favorites, platform and Vault tags. Changes apply straight away. */
+function openFilters(rerender) {
+  const f = state.linkFilter;
+  const body = h('div.filter-sheet');
+  const draw = () => {
+    const pool = linksInScope(state.vaultScope, { deep: true }); // counts for the current folder + subfolders
+    const by = (pred) => pool.filter(pred).length;
+    const counts = vaultTagCounts();
+    for (const id of counts.keys()) counts.set(id, 0);
+    for (const l of pool) for (const id of l.tag_ids || []) counts.set(id, (counts.get(id) || 0) + 1);
+    const tags = sortedVaultTags().filter((t) => counts.get(t.id) > 0 || f.tags.has(t.id));
+    const platforms = Object.keys(PLATFORMS).filter((p) => pool.some((l) => l.platform === p) || f.platform === p);
+    const change = (fn) => () => { fn(); rerender(); draw(); };
+    const chip = (on, label, count, fn) => h(`button.filter${on ? '.on' : ''}`, { type: 'button', 'aria-pressed': String(on), onclick: change(fn) }, label, count == null ? null : h('span.count', count));
+    body.replaceChildren(
+      h('div.filter-block', h('p.label', 'Status'),
+        h('div.filter-chips',
+          chip(!f.status, 'All', null, () => { f.status = ''; }),
+          chip(f.status === 'todo', 'To watch', by((l) => l.status === 'todo'), () => { f.status = 'todo'; }),
+          chip(f.status === 'done', 'Done', by((l) => l.status === 'done'), () => { f.status = 'done'; }),
+          h(`button.filter.fav-filter${f.favoritesOnly ? '.on' : ''}`, { type: 'button', 'aria-pressed': String(f.favoritesOnly), onclick: change(() => { f.favoritesOnly = !f.favoritesOnly; }) },
+            icon('star'), 'Favorites', h('span.count', by((l) => l.is_favorite))))),
+      platforms.length > 1
+        ? h('label.filter-block.field', h('span', 'Platform'),
+            h('select.platform-select', { onchange: (e) => { f.platform = e.target.value; rerender(); draw(); } },
+              h('option', { value: '', selected: !f.platform }, 'All platforms'),
+              platforms.map((p) => h('option', { value: p, selected: f.platform === p }, `${platformLabel(p)} (${by((l) => l.platform === p)})`))))
+        : null,
+      tags.length
+        ? h('div.filter-block', h('p.label', 'Vault tags'),
+            h('div.filter-chips', tags.map((t) => chip(f.tags.has(t.id), t.name, counts.get(t.id), () => { f.tags.has(t.id) ? f.tags.delete(t.id) : f.tags.add(t.id); }))))
+        : null,
+      h('div.row.end.filter-foot',
+        h('button.btn.ghost', { type: 'button', disabled: !hasLinkFilters(), onclick: () => { clearLinkFilters(); rerender(); draw(); } }, 'Clear all'),
+        h('button.btn.primary', { type: 'button', onclick: () => dlg.close() }, `Show ${plural(filteredLinks(state.vaultScope).length, 'link')}`)));
+  };
+  const dlg = sheet(body, { title: 'Filter links' });
+  draw();
 }
 
-/** Title, actions, quick add and filters for the Link Vault page. */
-export function vaultMasthead(actions, render, renderView) {
+/** The top-level folder a scope sits under (so its chip lights up while you are inside a subfolder). */
+function topFolderOf(scope) {
+  if (!scope || scope === UNSORTED) return null;
+  return folderPath(state.folders, scope)[0]?.id ?? null;
+}
+
+/** Title row (Search · Filter · Random · ⋯), the search box and the folder chips. */
+export function vaultHeader({ rerender, renderView, onRandom }) {
   const f = state.linkFilter;
   const scope = state.vaultScope;
-  const search = h('input#search', {
-    type: 'search', value: f.search,
-    placeholder: scope ? `Search ${scopeName(scope)}${scope !== UNSORTED && childrenOf(state.folders, scope).length ? ' + subfolders' : ''}` : 'Title, site, notes or tag',
-    oninput: (e) => { f.search = e.target.value; renderView(); },
+  const ready = !!state.linksReady;
+  const open = ready && isSearchOpen('links');
+  const nFilters = activeFilterCount();
+  const inFolder = !!scope && scope !== UNSORTED;
+  const sel = state.vaultSelect;
+
+  const actions = ready ? [
+    iconButton('search', 'Search (/)', () => toggleSearch('links', rerender), { on: open }),
+    iconButton('sliders', nFilters ? `Filter (${nFilters} on)` : 'Filter', () => openFilters(rerender), { dot: nFilters > 0 }),
+    iconButton('dice', 'Random', onRandom, { title: 'Random link (R)' }),
+    moreMenu([
+      { ic: 'check', label: sel ? 'Stop selecting' : 'Select links', pressed: !!sel, disabled: !state.links.length, run: () => { state.vaultSelect = state.vaultSelect ? null : new Set(); rerender(); } },
+      { ic: 'folder', label: inFolder ? 'New subfolder' : 'New folder', run: () => newFolder(inFolder ? scope : null) },
+      { ic: 'tag', label: 'Manage Vault tags', run: () => go('#/vault-tags') },
+    ]),
+  ] : null;
+
+  let chips = null;
+  if (ready) {
+    const counts = folderCounts(state.folders, state.links);
+    const topId = topFolderOf(scope);
+    const chip = (href, label, count, on, current) => h(`a.filter${on ? '.on' : ''}`, { href, 'aria-current': current ? 'page' : null }, label, count == null ? null : h('span.count', count));
+    chips = chipRow('Folders', [
+      chip(folderHref(null), 'All', null, scope === null, scope === null),
+      chip(folderHref(UNSORTED), 'Unsorted', counts.get(UNSORTED) || 0, scope === UNSORTED, scope === UNSORTED),
+      childrenOf(state.folders, null).map((fo) => chip(folderHref(fo.id), fo.name, null, topId === fo.id || scope === fo.id, scope === fo.id)),
+    ]);
+    chips.classList.add('vault-chips'); // on a laptop the folder tree takes over
+  }
+
+  return pageHead({
+    title: 'Vault',
+    actions,
+    below: [
+      open ? searchBar({
+        value: f.search, label: 'Search links',
+        placeholder: scope ? `Search ${scopeName(scope)}${scope !== UNSORTED && childrenOf(state.folders, scope).length ? ' + subfolders' : ''}` : 'Title, site, notes or tag',
+        oninput: (e) => { f.search = e.target.value; renderView(); },
+        onclose: () => toggleSearch('links', rerender),
+      }) : null,
+      chips,
+    ],
   });
-  const n = state.links.length;
-  const todo = state.links.filter((l) => l.status === 'todo').length;
-  return h('header.masthead.vault-head',
-    h('div.masthead-row',
-      h('div.titleblock',
-        h('p.eyebrow', `Vault · ${plural(n, 'link')}${todo ? ` · ${todo} to watch` : ''}`),
-        h('h1.title', 'Link Vault', h('span.title-dot', '.'))),
-      actions),
-    state.linksReady ? quickAdd() : null,
-    state.linksReady ? vaultFilterBar(search, render) : null);
 }
 
 // ---------------- folder tree (computer) ----------------
@@ -144,7 +164,8 @@ function folderTree(counts, rerender) {
 // ---------------- breadcrumb + folder rows ----------------
 
 function crumbs(scope) {
-  const trail = scope && scope !== UNSORTED ? folderPath(state.folders, scope) : [];
+  if (!scope) return null;
+  const trail = scope !== UNSORTED ? folderPath(state.folders, scope) : [];
   const up = parentHref(scope);
   const upName = scope === UNSORTED ? 'Vault' : (trail.length > 1 ? trail[trail.length - 2].name : 'Vault');
   const f = folderById(state.folders, scope);
@@ -152,31 +173,25 @@ function crumbs(scope) {
     up ? h('a.back.vault-up', { href: up, 'aria-label': `Up to ${upName}` }, icon('back'), h('span', upName)) : null,
     h('nav.breadcrumb', { 'aria-label': 'Folder path' },
       h('ol',
-        h('li', scope ? h('a', { href: folderHref(null) }, 'Vault') : h('span', { 'aria-current': 'page' }, 'Vault')),
+        h('li', h('a', { href: folderHref(null) }, 'Vault')),
         scope === UNSORTED ? h('li', h('span', { 'aria-current': 'page' }, 'Unsorted')) : null,
         trail.map((t, i) => h('li', i === trail.length - 1 ? h('span', { 'aria-current': 'page' }, t.name) : h('a', { href: folderHref(t.id) }, t.name))))),
     h('div.vault-folder-head',
-      h('h2.vault-folder-title', icon(!scope ? 'layers' : scope === UNSORTED ? 'tray' : 'folder'), h('span', scopeName(scope))),
-      h('div.vault-folder-actions',
-        f ? folderMenu(f) : null,
-        scope !== UNSORTED ? h('button.btn.small-btn', { type: 'button', onclick: () => newFolder(f ? f.id : null) }, icon('plus'), f ? 'Subfolder' : 'New folder') : null)));
+      h('h2.vault-folder-title', icon(scope === UNSORTED ? 'tray' : 'folder'), h('span', scopeName(scope))),
+      f ? h('div.vault-folder-actions', folderMenu(f)) : null));
 }
 
-function folderRows(scope, counts) {
-  const entries = [];
-  if (!scope) {
-    entries.push({ href: folderHref(UNSORTED), name: 'Unsorted', ic: 'tray', n: counts.get(UNSORTED), sub: 'Links in no folder' });
-    for (const f of childrenOf(state.folders, null)) entries.push({ href: folderHref(f.id), name: f.name, ic: 'folder', n: counts.get(f.id), sub: subLabel(f) });
-  } else if (scope !== UNSORTED) {
-    for (const f of childrenOf(state.folders, scope)) entries.push({ href: folderHref(f.id), name: f.name, ic: 'folder', n: counts.get(f.id), sub: subLabel(f) });
-  }
-  if (!entries.length) return null;
-  return h(`ul.folder-rows${!scope ? '.phone-only' : ''}`, { 'aria-label': 'Folders' },
-    entries.map((e) => h('li', h('a.folder-row', { href: e.href },
-      icon(e.ic),
-      h('span.folder-row-text', h('span.folder-row-name', e.name), e.sub ? h('span.folder-row-sub', e.sub) : null),
-      h('span.folder-row-count', plural(e.n || 0, 'link')),
-      icon('chevron')))));
+/** The "Folders" grid: the subfolders of the folder you are in. */
+function folderGrid(scope, counts) {
+  if (!scope || scope === UNSORTED) return null;
+  const kids = childrenOf(state.folders, scope);
+  if (!kids.length) return null;
+  return h('section.folder-section', { 'aria-labelledby': 'folders-title' },
+    h('h2#folders-title.section-label', 'Folders'),
+    h('ul.folder-grid', kids.map((fo) => h('li', h('a.folder-card', { href: folderHref(fo.id) },
+      icon('folder'),
+      h('span.folder-card-name', fo.name),
+      h('span.folder-card-sub', [plural(counts.get(fo.id) || 0, 'link'), subLabel(fo)].filter(Boolean).join(' · ')))))));
 }
 function subLabel(f) {
   const kids = childrenOf(state.folders, f.id).length;
@@ -231,7 +246,7 @@ export function renderVault(root, rerender, arg = '') {
   if (!state.links.length && !state.folders.length) {
     root.replaceChildren(h('div.empty',
       h('h2', 'No links yet'),
-      h('p.muted', 'Paste a link anywhere (Ctrl+V), use Paste link, type one above — or on iPhone, share it with the “Save to Vault” shortcut.'),
+      h('p.muted', 'Tap + to add one, paste a link anywhere (Ctrl+V) — or on iPhone, share it with the “Save to Vault” shortcut.'),
       h('div.row', pasteLinkButton(), h('button.btn.primary', { onclick: () => openAddLink() }, 'Add link'))));
     return;
   }
@@ -254,10 +269,6 @@ export function renderVault(root, rerender, arg = '') {
     text, sort: state.linkSort, view: state.linkView, nameLabel: 'Title',
     onSort: (s) => { state.linkSort = s; setPref('link-sort', s); rerender(); },
     onView: (v) => { state.linkView = v; setPref('link-view', v); rerender(); },
-    extra: list.length ? h(`button.btn.select-btn${sel ? '.on' : ''}`, {
-      type: 'button', 'aria-pressed': String(!!sel), title: 'Select links to move them to a folder',
-      onclick: () => { state.vaultSelect = sel ? null : new Set(); rerender(); },
-    }, icon('check'), 'Select') : null,
   });
   const after = () => { if (state.linkFilter.favoritesOnly || state.linkFilter.status) rerender(); };
   const opts = (l) => ({
@@ -273,7 +284,7 @@ export function renderVault(root, rerender, arg = '') {
           h('p.muted', scope ? `Nothing in ${scopeName(scope)} fits the current search and filters.` : 'Nothing fits the current search and filters.'),
           h('div.row',
             scope ? h('button.btn', { onclick: () => go(folderHref(null)) }, 'Search all links') : null,
-            h('button.btn', { onclick: () => { clearLinkFilters(); rerender(); } }, 'Clear filters')))
+            h('button.btn', { onclick: () => { clearLinkFilters(); state.searchOpen = false; rerender(); } }, 'Clear filters')))
       : h('div.empty.small-empty',
           h('h2', scope === UNSORTED ? 'Nothing unsorted' : 'Empty folder'),
           h('p.muted', scope === UNSORTED ? 'Every link is in a folder.' : 'Add a link here, or select links elsewhere and use “Move to folder…”.'),
@@ -288,7 +299,7 @@ export function renderVault(root, rerender, arg = '') {
     folderTree(counts, rerender),
     h('section.vault-main',
       crumbs(scope),
-      filtering ? null : folderRows(scope, counts),
+      filtering ? null : folderGrid(scope, counts),
       bar,
       previewsUnavailable() ? h('p.muted.small.vault-hint', 'Link previews are off until the “link-preview” Edge Function is deployed — see the README.') : null,
       body,

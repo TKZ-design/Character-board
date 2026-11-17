@@ -48,8 +48,6 @@
 
 /* ---------- room for the bar: it never covers content ---------- */
 #view { max-width: 1120px; margin: 0 auto; padding: 16px var(--pad) calc(var(--bar-total) + 32px); }
-.compare-bar { left: var(--rail-w); bottom: var(--bar-total); padding-bottom: 12px; }
-.view-grid:has(.compare-bar), .view-links:has(.select-bar) { padding-bottom: calc(var(--bar-total) + 140px); }
 body:not(.has-nav) .toasts { bottom: 16px; }
 
 /* ---------- page title ---------- */
