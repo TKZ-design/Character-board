@@ -1,0 +1,95 @@
+/* =========================================================
+   Stash — "Pocket" look
+   Space Grotesk (600) for titles, Inter for everything else.
+   Rounded cards (16px), thumbnails (10px), pill chips and buttons.
+   No shadows, no gradients. One accent colour.
+   Dark is the default; light is the matching alternative.
+   ========================================================= */
+
+/* ---------- theme tokens ---------- */
+:root, :root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0F1115;          /* page */
+  --card: #171A21;        /* cards, sheets, dialogs */
+  --chip: #1A1E27;        /* chips, icon buttons, inputs, image placeholders */
+  --line: #262B36;        /* borders and dividers */
+  --text: #F2F4F8;        /* 17.6:1 on bg */
+  --muted: #A3ACBB;       /* 8.2:1 on bg, 7.2:1 on chip */
+  --accent: #8FA8FF;      /* 8.2:1 on bg */
+  --on-accent: #0F1115;   /* text on accent */
+  --danger: #FF8F8F;
+  --on-danger: #0F1115;
+  --scrim: rgba(15, 17, 21, 0.72);   /* behind dialogs, over pictures */
+  --on-scrim: #ffffff;
+}
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #F4F5F8;
+  --card: #FFFFFF;
+  --chip: #E8EBF1;
+  --line: #D9DDE6;
+  --text: #0F1115;        /* 17.9:1 on bg */
+  --muted: #555D6B;       /* 6.1:1 on bg, 5.0:1 on chip */
+  --accent: #3D5BD9;      /* 5.2:1 on bg, 5.7:1 on white */
+  --on-accent: #FFFFFF;
+  --danger: #B42318;
+  --on-danger: #FFFFFF;
+  --scrim: rgba(15, 17, 21, 0.72);
+  --on-scrim: #ffffff;
+}
+
+:root {
+  --display: 'Space Grotesk', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --r-card: 16px;
+  --r-thumb: 10px;
+  --pill: 999px;
+  --pad: 16px;
+  --gap: 12px;
+  --tab-h: 64px;                                           /* tab bar (phone) */
+  --bar-total: calc(var(--tab-h) + env(safe-area-inset-bottom, 0px));
+  --rail-w: 0px;                                           /* side rail (laptop) */
+  --ph-yt: #ff4d6d; --ph-ig: #ff6ab0; --ph-rd: #ff7a45; --ph-tt: #2fd0c8;
+}
+:root[data-theme='light'] {
+  --ph-yt: #d6002b; --ph-ig: #c2185b; --ph-rd: #d03a00; --ph-tt: #007f7f;
+}
+@media (min-width: 900px) {
+  :root { --pad: 32px; --gap: 16px; --rail-w: 92px; --bar-total: 0px; }
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 15px/1.5 var(--sans);
+  min-height: 100dvh;
+  padding-left: var(--rail-w);
+  -webkit-font-smoothing: antialiased;
+}
+img { display: block; max-width: 100%; }
+a { color: var(--text); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+h1, h2, h3, h4 { margin: 0; line-height: 1.15; font-family: var(--display); font-weight: 600; letter-spacing: -0.01em; }
+h2 { font-size: 1.5rem; }
+h3 { font-size: 1.05rem; }
+[hidden] { display: none !important; }
+.muted { color: var(--muted); }
+.small { font-size: 0.85rem; }
+.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.row.end { justify-content: flex-end; }
+.stack { display: flex; flex-direction: column; gap: 16px; }
+.spacer { flex: 1; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* small label style, shared */
+.eyebrow, .label, .field > span:first-child, .search-label, .lb-count, .lb-hint, .compare-status, .menu-email {
+  font-size: 13px; font-weight: 500; letter-spacing: 0;
+}
+.eyebrow { margin: 0; color: var(--muted); }
+.label { color: var(--muted); margin-top: 18px; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
