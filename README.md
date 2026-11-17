@@ -13,35 +13,39 @@ Your data lives in **your own Supabase project**, and only you can see it once y
 
 ## What it does
 
-### Hub
-- After login you land on the **home screen** with a large tile per section (with counts and recent pictures).
-- The thin bar at the top of every page jumps between **Stash · Characters · Link Vault**, and holds the light/dark toggle and the **⋮ menu** (backup, sign out). Shortcut `H` goes home.
+### Getting around
+- There is **no home screen**. The app opens on the section you used last (**Characters** the very first time).
+- **On a phone** a bar along the bottom has **Characters · Vault · (＋) · Recent · More**. It stays above the iPhone's home indicator and never covers your content. **On a computer** the same five items stand in a column down the left.
+- The round **＋** button opens a small sheet: **New character**, **Add link**, **Paste link** (the link you just copied) and **Paste image** (the image you just copied).
+- **Recent** shows the links you marked *To watch* first, then the 30 newest things you added (characters and links mixed, newest first).
+- **More** holds **Tags** (for characters), **Vault tags**, **Backup (ZIP)**, the **Dark / Light** theme switch, the email you're signed in with, and **Sign out**. Any screen is at most two taps away.
+- **New links waiting in Unsorted:** when you open the app or come back to it, your links reload by themselves. If links arrived in **Unsorted** since you last looked there (for example saved with **Save to Stash** from your iPhone), a banner above the bar says *“N new in Unsorted”* with a **Move to folder** button (or tap the words to open Unsorted, or ✕ to dismiss). Each phone or computer remembers on its own what it has already shown you, and links you add inside the app never count as new.
+- The look is called **Pocket**: dark by default (a light version is one tap away in **More → Theme**, and your choice is remembered on each device).
+- The installed app is called **Stash**. On iPhone, an app already on your Home Screen keeps its old name until you remove it and add it again (Safari → Share → Add to Home Screen).
 - The installed app is called **Stash**. On iPhone, an app already on your Home Screen keeps its old name until you remove it and add it again (Safari → Share → Add to Home Screen).
 
 ### Characters
-- **Grid or List**: the buttons above the characters switch between the big gallery grid and a compact list (small picture, name, source, tags, image count, star). Your choice is remembered on each device.
+- **Grid or List**: the buttons above the characters switch between the two-column grid of cards (picture, name, *source · N images*) and a compact list (small picture, name, source, tags, image count, star). Your choice is remembered on each device.
 - **Sort** by *Date added*, *Name* or *Last updated* (last edit or newest image)
 - **Characters** with a name, an optional **source** (e.g. *Original*, a game or an anime), any number of images, tags, notes and source links
-- **Add images** by dragging them onto the page, choosing files (works with your phone's photo library/camera), pasting with **Ctrl+V / Cmd+V**, the **Paste** button, or — on Android — **sharing** them from any app (see below). On the board you're asked whether they're for a **new character** or should be **added to an existing one** (searchable by name or source)
-- **Tags page** (`Tags` in the header, shortcut `T`): every tag with how many characters use it, organised into **groups** you create (e.g. Genre, Role, Mood). Create, rename, merge, move and delete tags; renaming updates every character at once. Tags ignore upper/lower case and extra spaces (“Mage” = “mage ”). When tagging a character, existing tags are suggested (with their group) as you type
+- **Add images** by dragging them onto the page, choosing files (works with your phone's photo library/camera), pasting with **Ctrl+V / Cmd+V**, **＋ → Paste image**, or — on Android — **sharing** them from any app (see below). On the board you're asked whether they're for a **new character** or should be **added to an existing one** (searchable by name or source)
+- **Tags page** (**More → Tags**, or the **⋯** menu on Characters, or shortcut `T`): every tag with how many characters use it, organised into **groups** you create (e.g. Genre, Role, Mood). Create, rename, merge, move and delete tags; renaming updates every character at once. Tags ignore upper/lower case and extra spaces (“Mage” = “mage ”). When tagging a character, existing tags are suggested (with their group) as you type
 - **Duplicate protection**: while you type a new character's name you'll see characters with the same or a similar name (Kael / Kaell). Same name **and** same source gets a strong warning. Every uploaded image is fingerprinted, so re-adding the exact same image gets you a warning too
 - Images are **shrunk in your browser before uploading** (max 2000 px, WebP or JPEG), so they take up less storage
-- **Masonry grid** with **search by name or source** and **filtering by one or more tags** (grouped like on the Tags page)
+- **Search** by name or source (the 🔍 button, or `/`) and **filter chips** in one row that scrolls sideways: **All**, **Favorites**, then your tags (grouped like on the Tags page; pick one or more). A laptop shows more columns, and lets the chips wrap
 - **Detail view** with a gallery, full-size zoom (click the image, use arrow keys or swipe), editing and delete
 - **Reference link** on an image (optional): the web page an image came from. Hover an image in a character's gallery (always visible on phones) and press the **chain-link icon** to add, change or remove it. Images that have one show an **Open reference** button (on the image, and in the full-size view) that opens the page in a new tab; images without one show nothing extra. Right after adding images, the *“Added … images”* message has an **Add reference link** button to give all of them one link in one go. This is separate from the character's **Source** field and its *Source links*
 - **Cover image**: hover an image in a character's gallery (always visible on phones) and press the picture icon to make it the image shown on the grid
-- **Favorites**: star characters (on the card or in the detail view) and use the **★ Favorites** button to show only those
-- **🎲 Random**: jumps to a random character — it respects your current search, tag and favorites filters (shortcut: `R`)
-- **Compare**: press **Compare** on the board, tap 2 or 3 characters, then **Compare** again to see them side by side
-- **Backup**: **⋮ menu → Download backup (ZIP)** saves everything — one folder of full-size images per character, plus a `characters.json` file with all names, tags, notes, links, favorites and each image's reference link (`image_references`)
-- Dark mode by default, with a light mode toggle (☀️/🌙 button, your choice is remembered)
+- **Favorites**: star characters (on the card or in the detail view) and use the **★ Favorites** chip to show only those
+- **🎲 Random** (the dice button): jumps to a random character — it respects your current search, tag and favorites filters (shortcut: `R`)
+- **Compare**: open the **⋯** menu → **Compare characters**, tap 2 or 3 characters, then **Compare** to see them side by side
+- **Backup**: **More → Backup (ZIP)** saves everything — one folder of full-size images per character, plus a `characters.json` file with all names, tags, notes, links, favorites and each image's reference link (`image_references`)
 - **Installable** on desktop and phone like a normal app
 
 ### Link Vault
 - **Save a link** any of these ways:
-  - the **Paste link** button (reads the link on your clipboard — on iPhone, tap the little *Paste* bubble that appears)
+  - **＋ → Paste link** (reads the link on your clipboard — on iPhone, tap the little *Paste* bubble that appears) or **＋ → Add link** (type or paste it into the form)
   - **Ctrl+V / Cmd+V** anywhere in the app (not inside a text field)
-  - the **“Paste or type a link…”** field at the top of the Link Vault (pasting into it opens the form right away)
   - the **“Save to Stash”** iPhone Shortcut in the Share sheet: **one tap, saved** — Safari doesn't open, a banner says *Saved ✓* or *Already saved* (set-up in step 6 below)
   - the older **“Save to Vault”** iPhone Shortcut (opens the app with the link filled in, so you can pick a folder or add notes first — step 5 below), or on Android **Share → Stash**
 - Each link has a **title** (filled in automatically when possible), a **folder**, **notes**, **Vault tags**, **favorite**, **status** (*To watch* / *Done*) and optional **characters** it belongs to. Those links also show up on the character's page (with an **Add link** button there).
@@ -49,25 +53,25 @@ Your data lives in **your own Supabase project**, and only you can see it once y
 #### Folders
 - Folders can have subfolders, **up to 3 levels** (e.g. *Art › Tutorials › Anatomy*). A 4th level is refused with a message. Every link is in exactly one folder, or in **Unsorted** (no folder).
 - **On a computer**: the folder tree is on the left — *All links* and *Unsorted* at the top, then your folders with the number of links in each (including subfolders). Click ▸ to open or close a folder. The folder's contents are on the right.
-- **On a phone**: you go *into* folders. The path at the top (*Vault › Art › Tutorials*) is tappable; **‹** goes up one level (`Esc` does the same on a computer). Subfolders are listed first, then the links.
+- **On a phone**: a row of chips under the title — **All**, **Unsorted** (with its count) and your top-level folders — scrolls sideways. Tap a folder to go *into* it: the path at the top (*Vault › Art › Tutorials*) is tappable, **‹** goes up one level (`Esc` does the same on a computer), and its subfolders appear in a two-column **Folders** grid above the links.
 - **Folder options** (the **⋮** button next to the folder's name): *New subfolder*, *Rename*, *Move to…* (into another folder or to the top level — you can't move a folder into itself or make it deeper than 3 levels), *Move up* / *Move down* (to change the order), *Delete folder…*.
 - **Deleting a folder never deletes links.** Its links and subfolders move up one level (to the folder above it, or to the top level / Unsorted). You're told first how many items will move. If a subfolder's name is already taken where it moves to, it gets “(2)” added.
-- **Moving links**: press **Select** (above the links, in Grid or List), tap the links you want, then **Move to folder…** and pick a folder. You can also use **Move…** on a link's page, or the **Folder** field in *Edit*.
+- **Moving links**: open the **⋯** menu → **Select links**, tap the links you want, then **Move to folder…** and pick a folder. You can also use **Move…** on a link's page, or the **Folder** field in *Edit*.
 - **Adding a link**: the *Add link* form has a **Folder** field. It starts on the folder you're looking at; from *All links* it starts on the last folder you used in this browser. Links from the iPhone Shortcut, Android Share and Ctrl+V always start in **Unsorted** (you can still pick a folder before saving).
-- **Search and filters** work inside the folder you're in *and its subfolders*. In *All links* they search everything. Results show which folder each link is in (e.g. *Art › Tutorials*).
+- **Search** (🔍) and the **Filter** button (**To watch / Done**, favorites, platform, Vault tags) work inside the folder you're in *and its subfolders*. In *All links* they search everything. Results show which folder each link is in (e.g. *Art › Tutorials*).
 
 #### Vault tags
 - The Link Vault has **its own tag list**, separate from character tags: the tag box, filters and suggestions in the Vault only show Vault tags, and the Characters tag box, **Tags** page, tag groups and counts only show character tags. A tag with the same name can exist on both sides (e.g. *Sci-fi*); they are simply two separate tags.
-- **Tags** (top of the Link Vault, or `T`) opens **Manage Vault tags**: rename, merge and delete. Vault tags have no groups.
+- **More → Vault tags** (or the **⋯** menu in the Vault, or `T`) opens **Manage Vault tags**: rename, merge and delete. Vault tags have no groups.
 - **YouTube** (normal, `youtu.be`, Shorts and live links): the thumbnail comes straight from the video, and it **plays inside the app** with YouTube's privacy-enhanced player (youtube-nocookie.com).
 - **X, Instagram, Reddit**: opening a link shows the post with the platform's **official embed**, loaded only when you open it.
 - **Other websites** get their preview picture and title from the **link-preview** Edge Function (set-up below). Each link is looked up only once and the result is saved.
 - No picture (common for X and Instagram)? You get a clean placeholder card with the platform, your title and the domain — and **Set thumbnail** lets you upload or paste a picture (a screenshot works well). It's shrunk like character images.
 - **Duplicate warning**: if a link is already saved you'll be told, even if it looks different (`youtu.be/…` vs `youtube.com/watch?v=…`, `www.`, `http`/`https`, and tracking bits like `utm_…`, `si`, `igsh`, `fbclid` are ignored). Tracking bits are also removed from the address you save.
-- **Grid / List**, **sort**, **search** (title, site, notes, tags), and **filters** for status, favorites, platform and tags.
+- **List** (picture on the left, title, *platform · status*) or **Grid**, **sort**, **search** (title, site, notes, tags), and the **Filter** sheet for status, favorites, platform and tags. The list is the default; your choice is remembered on each device.
 - The **ZIP backup** also contains a `Link Vault` folder: `links.json` (every link with its folder path, notes, Vault tags, status and characters), `folders.json` (every folder with its full path, in your order), `vault-tags.json`, and your custom thumbnails.
 
-Handy shortcuts on a computer: `/` jumps to search, `N` makes a new character (or a new link in the Link Vault), `R` opens a random one, `T` opens Tags (Vault tags when you're in the Link Vault), `H` goes home, `Esc` goes back (in the Link Vault: up one folder).
+Handy shortcuts on a computer: `/` jumps to search, `N` makes a new character (or a new link in the Link Vault), `R` opens a random one, `T` opens Tags (Vault tags when you're in the Link Vault), `H` goes to the section you used last, `Esc` goes back (in the Link Vault: up one folder).
 Pasting or dropping an image on the board starts a new character with it.
 
 ---
@@ -114,7 +118,7 @@ Until now, characters and links shared one tag list. This file gives the Link Va
 4. Links stop using the old shared tags. A shared tag that **no character uses** any more is then deleted; tags your characters still use stay exactly as they are, and **tag groups are not touched**.
 5. **No link and no character is ever deleted.** Running the file a second time changes nothing.
 
-> **Make a backup first** (⋮ menu → *Download backup (ZIP)*) before running it, just in case.
+> **Make a backup first** (**More → Backup (ZIP)**) before running it, just in case.
 
 > If the app ever says *"The database needs an update"*, a file in that folder hasn't been run yet.
 
@@ -320,17 +324,19 @@ Copy an image in another app, open Stash and tap **Paste** (on the board, in *Ne
 
 - Built with [Vite](https://vite.dev) + plain JavaScript, [supabase-js](https://supabase.com/docs/reference/javascript) and [JSZip](https://stuk.github.io/jszip/).
 - `npm install` then `npm run dev` runs it locally at http://localhost:5173/.
-  Add `?mock` to the URL (http://localhost:5173/?mock) to try the interface with fake in-memory data and no login — this only exists in development and is never included in the published app.
+  Add `?mock` to the URL (http://localhost:5173/?mock) to try the interface with fake in-memory data and no login — this only exists in development and is never included in the published app. To see the “new in Unsorted” banner there, press **F12 → Console**, type `__mockQuickSave()` and press Enter, then switch to another browser tab and back.
 - `npm run build` creates the production site in `dist/`.
 - The deploy workflow lives in `.github/workflows/deploy.yml`.
 - Database / storage / security rules: `supabase/setup.sql`, then the files in `supabase/migrations/`.
-- `npm test` runs the unit tests (name matching, tag rules, link parsing / duplicate keys, folder rules, the tag → folder conversion, the Edge Functions' safety checks, and Quick Save's key check, link validation and duplicate handling).
+- `npm test` runs the unit tests (name matching, tag rules, link parsing / duplicate keys, folder rules, the tag → folder conversion, the “new in Unsorted” rules, the Edge Functions' safety checks, and Quick Save's key check, link validation and duplicate handling).
   The database test (`tests/migration.test.js`) runs every SQL file against a throwaway PostgreSQL database — including the conversion, twice. It only runs when you point it at a PostgreSQL server: `STASH_PG_URL=postgresql://postgres:postgres@localhost:5432/postgres npm test` (otherwise it's skipped).
 
 | File | What it is |
 | --- | --- |
-| `src/main.js` | App shell: routing, hub bar, section headers, paste & drop handling, `?add=` links, login state |
-| `src/sections.js` | The list of hub sections (add an entry here to add a section) |
+| `src/main.js` | App shell: routing, screen headers, the bottom bar / side rail, paste & drop handling, `?add=` links, refresh-on-return, login state |
+| `src/sections.js` | The list of tabs and which screens belong to them (add an entry here to add a tab) |
+| `src/unsorted.js` | The rules for “N new in Unsorted” (plain functions, covered by `tests/unsorted.test.js`) |
+| `src/styles/` | The look: `tokens.css` (colours, fonts, sizes — the place to change the design), `base.css` (buttons, fields, dialogs), `nav.css` (bar, rail, banner, More, Recent), `layout.css` (Characters and Vault), `screens.css` (detail pages, Tags, forms) |
 | `src/folders.js` | Link Vault folder rules (paths, 3-level limit, move/delete behaviour) and the JavaScript copy of the tag → folder conversion |
 | `src/links.js` | Link helpers: finding a URL in text, platforms, YouTube IDs, embeds, tracking-parameter clean-up, duplicate keys |
 | `src/previews.js` | Talks to the `link-preview` Edge Function and saves the results |
@@ -340,7 +346,7 @@ Copy an image in another app, open Stash and tap **Paste** (on the board, in *Ne
 | `.env.example` | The names of the two Supabase secrets Quick Save needs, with fake values. The real ones are only ever typed into the Supabase dashboard |
 | `src/api.js` | Everything that talks to Supabase |
 | `src/compress.js` | In-browser image resizing/compression |
-| `src/views/` | The screens: login, home, grid, detail, tags, Link Vault (`vault.js`, `folder-ui.js`, `vault-tags.js`, `link-detail.js`, `add-link.js`, `embeds.js`), dialogs, lightbox |
+| `src/views/` | The screens: login, grid, detail, tags, Link Vault (`vault.js`, `folder-ui.js`, `vault-tags.js`, `link-detail.js`, `add-link.js`, `embeds.js`), Recent, More, the bottom bar (`tabbar.js`), the ＋ sheet (`add-sheet.js`), the Unsorted banner, dialogs, lightbox |
 | `src/text.js` | Tag clean-up and the "similar name" matching |
 | `src/hash.js`, `src/paste.js`, `src/share.js` | Duplicate-image check, Paste button, Android share target |
 | `public/sw.js`, `public/manifest.webmanifest` | What makes it installable (PWA) |
