@@ -76,6 +76,20 @@ select option { color: initial; }
 .field-error { color: var(--danger); font-size: 14px; margin: -8px 0 0; }
 .field-error:empty { display: none; }
 
+/* ---------- segmented choices (theme, status, grid/list) ---------- */
+.segmented { display: inline-flex; gap: 2px; padding: 3px; margin: 0; min-width: 0; background: var(--chip); border: 1px solid var(--line); border-radius: var(--pill); }
+.segmented label { position: relative; display: inline-flex; cursor: pointer; }
+.segmented label input { position: absolute; opacity: 0; inset: 0; margin: 0; width: 100%; height: 100%; cursor: pointer; }
+.segmented label span, .seg-btn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 16px; border-radius: var(--pill);
+  font: 500 14px/1 var(--sans); color: var(--muted);
+}
+.seg-btn { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 16px; border-radius: var(--pill); font: 500 14px/1 var(--sans); color: var(--muted); }
+.seg-btn:hover { color: var(--text); }
+.segmented input:checked + span, .seg-btn[aria-pressed='true'], .seg-btn.on { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+.segmented input:focus-visible + span, .seg-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.seg-btn .icon { width: 16px; height: 16px; }
+
 /* ---------- tag chips ---------- */
 .chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .chip {

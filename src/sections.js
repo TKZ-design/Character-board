@@ -1,41 +1,26 @@
-// The hub's sections. To add a new one later:
-//   1. add an entry here (id, title, href, the route names it owns, a summary for the home tile)
-//   2. add its route(s) to ROUTES in main.js and a header in main.js → sectionHeader()
-import { state } from './state.js';
-
-const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
-
-export const SECTIONS = [
-  {
-    id: 'characters',
-    title: 'Characters',
-    short: 'Characters',
-    href: '#/characters',
-    views: ['characters', 'c', 'compare', 'tags'],
-    count: () => state.characters.length,
-    summary() {
-      const imgs = state.characters.reduce((n, c) => n + c.images.length, 0);
-      const favs = state.characters.filter((c) => c.is_favorite).length;
-      return [plural(state.characters.length, 'character'), plural(imgs, 'image'), favs ? plural(favs, 'favorite') : null];
-    },
-  },
-  {
-    id: 'links',
-    title: 'Link Vault',
-    short: 'Links',
-    href: '#/links',
-    views: ['links', 'l', 'vault-tags'],
-    count: () => state.links.length,
-    summary() {
-      if (state.linksReady === false) return ['Needs a database update'];
-      const todo = state.links.filter((l) => l.status === 'todo').length;
-      const favs = state.links.filter((l) => l.is_favorite).length;
-      return [plural(state.links.length, 'link'), state.folders.length ? plural(state.folders.length, 'folder') : null, todo ? `${todo} to watch` : null, favs ? plural(favs, 'favorite') : null];
-    },
-  },
+// The app's tabs (bottom bar on a phone, side rail on a laptop) and which screens belong to which.
+// To add a new tab later:
+//   1. add an entry to TABS (id, label, the route names it owns)
+//   2. add its route(s) to ROUTES in main.js, a header in main.js → headerFor(), and an item in views/tabbar.js
+export const TABS = [
+  { id: 'characters', label: 'Characters', views: ['characters', 'c', 'compare'] },
+  { id: 'links', label: 'Vault', views: ['links', 'l'] },
+  { id: 'recent', label: 'Recent', views: ['recent'] },
+  { id: 'more', label: 'More', views: ['more', 'tags', 'vault-tags'] },
 ];
 
-/** The section a route belongs to ('tags' = character tags, 'vault-tags' = Link Vault tags). */
-export function sectionOf(view) {
-  return SECTIONS.find((s) => s.views.includes(view)) || null;
+/** The tab a route lights up. */
+export function tabOf(view) {
+  return TABS.find((t) => t.views.includes(view)) || null;
 }
+
+/**
+ * Which kind of thing a route is about, for shortcuts like N (new) and T (tags):
+ * 'links' for the Link Vault and its tags, 'characters' for everything else.
+ */
+export function contextOf(view) {
+  return ['links', 'l', 'vault-tags'].includes(view) ? 'links' : 'characters';
+}
+
+/** The tabs you can come back to on start-up ("the section I used last"). */
+export const REMEMBERED = ['characters', 'links', 'recent'];

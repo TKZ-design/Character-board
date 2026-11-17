@@ -66,9 +66,10 @@ body {
   color: var(--text);
   font: 400 15px/1.5 var(--sans);
   min-height: 100dvh;
-  padding-left: var(--rail-w);
+  padding-top: env(safe-area-inset-top, 0px);   /* iPhone status bar */
   -webkit-font-smoothing: antialiased;
 }
+body.has-nav { padding-left: var(--rail-w); }  /* room for the side rail on a laptop */
 img { display: block; max-width: 100%; }
 a { color: var(--text); text-underline-offset: 3px; text-decoration-thickness: 1px; }
 h1, h2, h3, h4 { margin: 0; line-height: 1.15; font-family: var(--display); font-weight: 600; letter-spacing: -0.01em; }

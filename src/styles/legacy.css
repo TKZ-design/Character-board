@@ -12,7 +12,6 @@
 .title-dot { font-style: italic; color: var(--accent); }
 .actions { display: flex; gap: 6px 14px; align-items: center; flex-wrap: wrap; padding-bottom: 6px; }
 .actions .new-btn { margin-left: 6px; }
-.utility { display: flex; align-items: center; }
 
 .topbar {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -25,7 +24,6 @@
 }
 .back:hover span { text-decoration: underline; text-underline-offset: 4px; }
 .back .icon { width: 16px; height: 16px; }
-
 
 /* ---------- filter bar ---------- */
 .filterbar {
@@ -110,7 +108,6 @@
 }
 .compare-status { margin-right: auto; }
 .view-grid:has(.compare-bar) { padding-bottom: 160px; }
-
 
 /* ---------- detail ---------- */
 .detail { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr); gap: 72px; align-items: start; }
@@ -393,66 +390,8 @@ li:last-child > .merge-option, li:last-child > .char-pick-item { border-bottom: 
 }
 
 /* ---------- hub bar (every page) ---------- */
-.hubbar { border-bottom: 1px solid var(--line); padding-top: env(safe-area-inset-top); }
-.hubbar-inner {
-  display: flex; align-items: center; gap: 4px 24px;
-  max-width: 1680px; margin: 0 auto; padding: 4px var(--pad);
-}
-.hub-home {
-  display: inline-flex; align-items: center; gap: 10px; min-height: 44px; min-width: 44px; padding-right: 4px;
-  color: var(--text); text-decoration: none; flex: none;
-}
-.hub-home .icon { width: 16px; height: 16px; }
-.hub-home:hover .hub-home-label, .hub-home.on .hub-home-label { text-decoration: underline; text-underline-offset: 5px; }
-.hub-home.on .hub-home-label { font-weight: 600; text-decoration-thickness: 2px; }
-.switcher {
-  display: flex; align-items: center; gap: 0 22px; flex: 1; min-width: 0;
-  overflow-x: auto; scrollbar-width: none; padding-left: 22px; border-left: 1px solid var(--line);
-}
-.switcher::-webkit-scrollbar { display: none; }
-.switch {
-  display: inline-flex; align-items: center; min-height: 44px; flex: none;
-  color: var(--muted); text-decoration: none;
-  border-bottom: 3px solid transparent; padding-top: 3px;
-}
-.switch:hover { color: var(--text); }
-.switch.on { color: var(--text); font-weight: 600; border-bottom-color: var(--text); }
-.switch:focus-visible { outline-offset: -2px; }
-.switch-short { display: none; }
-.hubbar .utility { margin-left: auto; margin-right: -10px; flex: none; }
 
 /* ---------- home ---------- */
-.home-head { border-bottom: 0; padding-bottom: 40px; padding-top: 8px; }
-.home-head .actions { gap: 6px 20px; }
-.hub-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); border-top: 1px solid var(--strong-line); padding-top: var(--gap); }
-.hub-tile {
-  display: flex; flex-direction: column; gap: 20px; min-width: 0;
-  color: var(--text); text-decoration: none;
-}
-.hub-tile-media {
-  display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; gap: 6px;
-  aspect-ratio: 16 / 10; background: var(--tint); overflow: hidden;
-}
-.hub-tile-media[data-n='1'] { grid-template-columns: 1fr; grid-template-rows: 1fr; }
-.hub-tile-media[data-n='2'] { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
-.hub-tile-media[data-n='0'] { display: grid; place-items: center; }
-.hub-tile-pic { display: block; min-width: 0; min-height: 0; overflow: hidden; background: var(--tint); }
-.hub-tile-media[data-n='3'] .hub-tile-pic:first-child { grid-row: span 2; }
-.hub-tile-pic img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.3s, transform 0.4s; }
-.hub-tile-pic img.loaded { opacity: 1; }
-.hub-tile-pic .link-media { width: 100%; height: 100%; aspect-ratio: auto; }
-.hub-tile-pic .link-ph { padding: 14px 16px; }
-.hub-tile-pic .link-ph-title { font-size: 22px; }
-.hub-tile-empty { font-size: 12px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); }
-.hub-tile-body { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 10px 16px; }
-.hub-tile-title { font-family: var(--serif); font-size: 64px; line-height: 0.95; letter-spacing: -0.015em; grid-column: 1 / -1; }
-.hub-tile-count { color: var(--muted); }
-.hub-tile-go { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
-.hub-tile-go .icon { width: 16px; height: 16px; transition: translate 0.2s; }
-.hub-tile:hover .hub-tile-title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 10px; }
-.hub-tile:hover .hub-tile-go .icon { translate: 4px 0; }
-.hub-tile:hover .hub-tile-pic img.loaded { opacity: 0.9; }
-.hub-tile:focus-visible { outline-offset: 8px; }
 
 /* ---------- view bar: count · sort · grid/list ---------- */
 .viewbar { display: flex; align-items: center; justify-content: space-between; gap: 8px 24px; flex-wrap: wrap; margin: -12px 0 28px; }
@@ -600,23 +539,7 @@ li:last-child > .merge-option, li:last-child > .char-pick-item { border-bottom: 
 .add-cover-btns { gap: 0 16px; }
 .add-cover-btns .btn, .add-preview-text > .btn { padding-left: 0; align-self: flex-start; }
 .add-link-flags { justify-content: space-between; gap: 12px 24px; }
-.segmented { display: inline-flex; border: 1px solid var(--strong-line); padding: 0; margin: 0; min-width: 0; }
-.segmented label { position: relative; display: inline-flex; cursor: pointer; }
-.segmented input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
-.segmented label span { display: inline-flex; align-items: center; min-height: 42px; padding: 0 16px; color: var(--muted); }
-.segmented label + label { border-left: 1px solid var(--strong-line); }
-.segmented input:checked + span { background: var(--text); color: var(--bg); font-weight: 600; }
-.segmented input:focus-visible + span { outline: 2px solid var(--text); outline-offset: 2px; }
-.seg-buttons .seg-btn {
-  all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
-  min-height: 42px; padding: 0 16px; color: var(--muted);
-  font: 500 12px/1 var(--sans); text-transform: uppercase; letter-spacing: 0.14em;
-}
-.seg-buttons .seg-btn:hover { color: var(--text); }
-.seg-buttons .seg-btn + .seg-btn { border-left: 1px solid var(--strong-line); }
-.seg-buttons .seg-btn.on, .seg-buttons .seg-btn.on:hover { background: var(--text); color: var(--bg); font-weight: 600; }
-.seg-buttons .seg-btn:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
-.seg-btn .icon { width: 14px; height: 14px; }
+
 .check { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
 .check input { width: 20px; height: 20px; min-height: 0; margin: 0; accent-color: var(--text); cursor: pointer; }
 .check span { display: inline-flex; align-items: center; gap: 6px; }
@@ -684,24 +607,22 @@ li:last-child > .merge-option, li:last-child > .char-pick-item { border-bottom: 
 /* ---------- responsive (hub) ---------- */
 @media (max-width: 1100px) {
   .lgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .hub-tile-title { font-size: 52px; }
+  
 }
 @media (max-width: 860px) {
   .link-detail .detail-info { order: 0; } /* on phones: the video / post first, then the details */
   .link-detail { gap: 28px; }
 }
-@media (max-width: 760px) {
-  .hub-tiles { grid-template-columns: 1fr; gap: 48px; }
-}
+
 @media (max-width: 640px) {
-  .hubbar-inner { gap: 4px 14px; padding-top: 2px; padding-bottom: 2px; }
-  .hub-home-label { display: none; }
-  .switcher { gap: 0 18px; padding-left: 14px; }
-  .switch-long { display: none; }
-  .switch-short { display: inline; }
-  .home-head { padding-bottom: 28px; }
-  .hub-tile-title { font-size: 44px; }
-  .hub-tile { gap: 14px; }
+  
+  
+  
+  
+  
+  
+  
+  
   .viewbar { margin: -8px 0 20px; }
   .viewbar-tools { gap: 4px 14px; width: 100%; justify-content: space-between; }
   .lgrid { grid-template-columns: 1fr; gap: 44px; }
@@ -721,11 +642,6 @@ li:last-child > .merge-option, li:last-child > .char-pick-item { border-bottom: 
 /* iOS zooms into any focused field under 16px */
 @supports (-webkit-touch-callout: none) {
   input, textarea, .sort-select { font-size: max(16px, 1em); }
-}
-@media (max-width: 380px) {
-  .hubbar-inner { gap: 4px 8px; padding-left: 14px; padding-right: 14px; }
-  .switcher { gap: 0 14px; padding-left: 10px; }
-  .switch { font-size: 11px; letter-spacing: 0.07em; }
 }
 
 /* =========================================================

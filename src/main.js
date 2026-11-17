@@ -1,13 +1,15 @@
 import './style.css';
 import { h, icon, errorToast, toast } from './ui.js';
-import { api, setApi, state, randomCharacter, randomLink } from './state.js';
-import { toggleTheme, currentTheme } from './theme.js';
+import { api, setApi, state, randomCharacter, randomLink, getPref, setPref } from './state.js';
 import { setRerender, setPasteTarget, getPasteTarget, go } from './nav.js';
 import { filesFromPaste } from './upload.js';
 import { parseUrl } from './links.js';
-import { SECTIONS, sectionOf } from './sections.js';
+import { tabOf, contextOf, REMEMBERED } from './sections.js';
 import { renderLogin } from './views/login.js';
-import { renderHome } from './views/home.js';
+import { renderMore } from './views/more.js';
+import { renderRecent } from './views/recent.js';
+import { renderTabbar } from './views/tabbar.js';
+import { pageHead } from './views/page-head.js';
 import { renderGrid, filterBar } from './views/grid.js';
 import { renderDetail, resetEditing } from './views/detail.js';
 import { openNewCharacter } from './views/new-character.js';
@@ -21,7 +23,6 @@ import { openAddLink, pasteLinkButton } from './views/add-link.js';
 import { fillPendingPreviews } from './previews.js';
 import { pasteButton } from './paste.js';
 import { takeSharedFiles } from './share.js';
-import { exportZip } from './export.js';
 
 const app = document.getElementById('app');
 let lastRoute = '';
@@ -33,20 +34,27 @@ function route() {
 
 // ---------------- header ----------------
 
-/** Thin top bar on every page: home, the section switcher, theme + menu. */
-function hubBar(r, sec) {
-  return h('header.hubbar',
-    h('div.hubbar-inner',
-      h(`a.hub-home${r.view === '' ? '.on' : ''}`, { href: '#/', 'aria-label': 'Home', title: 'Home (H)', 'aria-current': r.view === '' ? 'page' : null },
-        icon('home'), h('span.hub-home-label', 'Stash')),
-      h('nav.switcher', { 'aria-label': 'Sections' },
-        SECTIONS.map((s) => h(`a.switch${sec?.id === s.id ? '.on' : ''}`, {
-          href: s.href, 'aria-current': sec?.id === s.id ? 'page' : null,
-        }, h('span.switch-long', s.title), h('span.switch-short', { 'aria-hidden': 'true' }, s.short)))),
-      h('div.utility',
-        h('button.icon-btn', { onclick: () => { toggleTheme(); render(); }, title: 'Toggle light/dark mode', 'aria-label': 'Toggle light/dark mode' },
-          icon(currentTheme() === 'dark' ? 'sun' : 'moon')),
-        menuButton())));
+const TAG_VIEWS = ['tags', 'vault-tags'];
+
+/** Where "back" goes from a detail page, and what to call it. */
+function backTarget(r) {
+  if (r.view === 'l') return { href: state.lastVaultHash || '#/links', label: 'Vault' };
+  if (r.view === 'c' || r.view === 'compare') return { href: '#/characters', label: 'Characters' };
+  // Tags pages: back to wherever you opened them from (More, or a section through the T shortcut)
+  const from = state.tagsBack || '#/more';
+  const label = from.startsWith('#/links') ? 'Vault' : from.startsWith('#/characters') ? 'Characters'
+    : from.startsWith('#/recent') ? 'Recent' : from.startsWith('#/more') ? 'More' : 'Back';
+  return { href: from, label };
+}
+
+/** The tab the app opens on: the one you used last (Characters the first time). */
+function homeHash() {
+  const id = getPref('last-section', 'characters', REMEMBERED);
+  return id === 'links' ? state.lastVaultHash || '#/links' : `#/${id}`;
+}
+
+function randomButton() {
+  return h('button.icon-btn', { type: 'button', onclick: goRandom, title: 'Random inspiration (R)', 'aria-label': 'Random' }, icon('dice'));
 }
 
 function tagsLink(r) {
@@ -60,28 +68,22 @@ function characterActions(r) {
   const onGrid = r.view === 'characters';
   return h('div.actions',
     tagsLink(r),
-    h('button.btn.random-btn', { onclick: goRandom, title: 'Random inspiration (R) — respects your filters' }, 'Random'),
+    randomButton(),
     onGrid && state.characters.length
       ? h(`button.btn.compare-btn${state.compareMode ? '.on' : ''}`, {
           'aria-pressed': String(state.compareMode),
           title: 'Pick 2–3 characters to view side by side',
           onclick: () => { state.compareMode = !state.compareMode; state.compareSel = []; render(); },
         }, 'Compare')
-      : null,
-    onGrid ? pasteButton((files) => openImageChooser(files), { label: 'Paste' }) : null,
-    h('button.btn.primary.new-btn', { onclick: () => openNewCharacter(), title: 'New character (N)' }, 'Add character'));
+      : null);
 }
 
 function linkActions(r) {
-  return h('div.actions',
-    vaultTagsLink(r),
-    pasteLinkButton(),
-    h('button.btn.primary.new-btn', { onclick: () => openAddLink(), title: 'Add a link (N)' }, 'Add link'));
+  return h('div.actions', vaultTagsLink(r), randomButton());
 }
 
-/** The section's own header under the hub bar. */
-function sectionHeader(r, sec) {
-  if (r.view === '') return null; // the home page draws its own title
+/** Each screen's own header (above the content). */
+function headerFor(r) {
   if (r.view === 'characters') {
     const searchInput = h('input#search', {
       type: 'search', placeholder: 'Name or source', value: state.search,
@@ -92,41 +94,23 @@ function sectionHeader(r, sec) {
       h('div.masthead-row',
         h('div.titleblock',
           h('p.eyebrow', `Collection · ${n} ${n === 1 ? 'entry' : 'entries'}`),
-          h('h1.title', 'Characters', h('span.title-dot', '.'))),
+          h('h1.title', 'Characters')),
         characterActions(r)),
       filterBar(searchInput, render));
   }
   if (r.view === 'links') return vaultMasthead(linkActions(r), render, renderView);
-  // detail pages, compare, tags: a back link + the section's actions
-  const back = sec || SECTIONS[0];
-  const backHref = back.id === 'links' ? state.lastVaultHash || back.href : back.href;
+  if (r.view === 'recent') return pageHead({ title: 'Recent' });
+  if (r.view === 'more') return pageHead({ title: 'More' });
+  // detail pages, compare, tags: a back link
+  const back = backTarget(r);
   return h('header.topbar',
-    h('a.back', { href: backHref }, icon('back'), h('span', back.title)),
-    back.id === 'links' ? linkActions(r) : characterActions(r));
-}
-
-function header(r) {
-  const sec = sectionOf(r.view);
-  return h('div.chrome', hubBar(r, sec), sectionHeader(r, sec));
-}
-
-function menuButton() {
-  const menu = h('div.menu', { hidden: true },
-    h('div.menu-email.muted.small', state.user?.email || ''),
-    h('button.menu-item', { onclick: () => exportZip() }, icon('download'), 'Download backup (ZIP)'),
-    h('button.menu-item', { onclick: async () => { await api.signOut(); } }, icon('logout'), 'Sign out'),
-  );
-  const btn = h('button.icon-btn', { 'aria-label': 'More', 'aria-haspopup': 'true', onclick: (e) => {
-    e.stopPropagation();
-    menu.hidden = !menu.hidden;
-    if (!menu.hidden) setTimeout(() => document.addEventListener('click', () => (menu.hidden = true), { once: true }));
-  } }, icon('menu'));
-  return h('div.menu-wrap', btn, menu);
+    h('a.back', { href: back.href }, icon('back'), h('span', back.label)),
+    ['c', 'l'].includes(r.view) ? randomButton() : null);
 }
 
 function goRandom() {
   const r = route();
-  if (sectionOf(r.view)?.id === 'links') {
+  if (contextOf(r.view) === 'links') {
     const l = randomLink(r.view === 'l' ? r.arg : null);
     if (l) go(`#/l/${l.id}`);
     else toast(state.links.length ? 'No links match your filters' : 'Add some links first!');
@@ -139,10 +123,10 @@ function goRandom() {
 
 // ---------------- views ----------------
 const viewEl = h('main#view');
+let navEl = h('div');
 let headerEl = h('div');
 
 const ROUTES = {
-  '': (root) => renderHome(root),
   characters: (root) => renderGrid(root, render), // full render so the header's filters/Compare stay in sync
   c: (root, arg) => renderDetail(root, arg),
   compare: (root, arg) => renderCompare(root, arg),
@@ -150,36 +134,48 @@ const ROUTES = {
   links: (root, arg) => renderVault(root, render, arg),
   'vault-tags': (root) => renderVaultTags(root),
   l: (root, arg) => renderLinkDetail(root, arg),
+  recent: (root) => renderRecent(root, render),
+  more: (root) => renderMore(root, render),
 };
 
 function renderView() {
   const r = route();
-  const known = r.view in ROUTES;
-  viewEl.className = 'view-' + (known ? (r.view === 'characters' ? 'grid' : r.view || 'home') : 'home');
+  viewEl.className = 'view-' + (r.view === 'characters' ? 'grid' : r.view);
   setPasteTarget(null);
-  (ROUTES[r.view] || ROUTES[''])(viewEl, r.arg);
+  (ROUTES[r.view] || ROUTES.characters)(viewEl, r.arg);
 }
 
+let lastHash = '';
+
 function render() {
+  document.body.classList.toggle('has-nav', !!state.user);
   if (!state.user) { renderLogin(app, { pendingUrl: peekPendingAdd() }); return; }
   const r = route();
+  // No Home screen any more: an empty or old address opens the section you used last
+  if (!(r.view in ROUTES)) { location.replace(homeHash()); return; }
   state.vaultScope = r.view === 'links' ? scopeFromArg(r.arg) : null; // the header's search box needs it
   const key = r.view + '/' + r.arg;
   if (key !== lastRoute) {
+    const prevView = lastRoute.split('/')[0];
     resetEditing();
     resetLinkEditing();
     if (r.view !== 'characters') { state.compareMode = false; state.compareSel = []; }
     state.vaultSelect = null; // leaving a folder ends "Select"
     if (r.view === 'links') state.lastVaultHash = location.hash || '#/links';
-    const sec = sectionOf(r.view);
-    if (sec) state.lastSection = sec.id;
+    if (TAG_VIEWS.includes(r.view) && !TAG_VIEWS.includes(prevView)) state.tagsBack = lastHash || '#/more';
+    const tab = tabOf(r.view);
+    if (tab && REMEMBERED.includes(tab.id)) setPref('last-section', tab.id);
     lastRoute = key;
     window.scrollTo(0, 0);
   }
-  const newHeader = header(r);
+  lastHash = location.hash;
+  const newHeader = headerFor(r);
+  const newNav = renderTabbar(r.view);
   // keep the search box focused while typing
   const hadFocus = document.activeElement?.id === 'search';
-  if (!app.contains(viewEl)) app.replaceChildren(headerEl, viewEl);
+  if (!app.contains(viewEl)) app.replaceChildren(navEl, headerEl, viewEl);
+  navEl.replaceWith(newNav);
+  navEl = newNav;
   headerEl.replaceWith(newHeader);
   headerEl = newHeader;
   renderView();
@@ -232,19 +228,18 @@ document.addEventListener('keydown', (e) => {
   if (!state.user || document.querySelector('dialog[open]')) return;
   if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
   const r = route();
-  const inLinks = sectionOf(r.view)?.id === 'links';
+  const inLinks = contextOf(r.view) === 'links';
   if (e.key === '/') { const s = document.getElementById('search'); if (s) { e.preventDefault(); s.focus(); } }
   else if (e.key === 'n') { e.preventDefault(); if (inLinks) openAddLink(); else openNewCharacter(); }
   else if (e.key === 'r') { e.preventDefault(); goRandom(); }
   else if (e.key === 't') { e.preventDefault(); go(inLinks ? '#/vault-tags' : '#/tags'); }
-  else if (e.key === 'h') { e.preventDefault(); go('#/'); }
+  else if (e.key === 'h') { e.preventDefault(); go(homeHash()); } // "home" = the section you used last
   else if (e.key === 'Escape') {
     if (['c', 'compare'].includes(r.view)) go('#/characters');
     else if (r.view === 'l') go(state.lastVaultHash || '#/links');
     else if (r.view === 'links' && state.vaultSelect) { state.vaultSelect = null; render(); }
     else if (r.view === 'links' && parentHref(scopeFromArg(r.arg))) go(parentHref(scopeFromArg(r.arg)));
-    else if (r.view === 'tags') go('#/characters');
-    else if (r.view === 'vault-tags') go(state.lastVaultHash || '#/links');
+    else if (TAG_VIEWS.includes(r.view)) go(backTarget(r).href);
   }
 });
 
@@ -326,7 +321,7 @@ async function onUser(user) {
   state.user = user;
   if (!changed) return;
   if (user) {
-    app.replaceChildren(h('div.loading', h('div.spinner'), 'Loading your hub…'));
+    app.replaceChildren(h('div.loading', h('div.spinner'), 'Loading your stash…'));
     await loadData();
     lastRoute = '';
     app.replaceChildren(); // force header/view re-mount

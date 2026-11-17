@@ -23,16 +23,19 @@ export async function readClipboardLink() {
   } catch { return null; }
 }
 
+/** Read the link on the clipboard and open the Add dialog with it (or say why not). */
+export async function pasteLink() {
+  const url = await readClipboardLink();
+  if (url) openAddLink({ url });
+  else if (url === '') toast('No link on the clipboard — copy a link first (Share → Copy link), then try again.', { timeout: 6000 });
+  else openAddLink({ hint: 'The browser didn’t allow reading the clipboard. Long-press the field below and tap Paste.' });
+}
+
 /** "Paste link" button: reads the clipboard, opens the Add dialog pre-filled. */
 export function pasteLinkButton({ label = 'Paste link' } = {}) {
   return h('button.btn.paste-btn', {
     type: 'button', title: 'Save the link on your clipboard',
-    onclick: async () => {
-      const url = await readClipboardLink();
-      if (url) openAddLink({ url });
-      else if (url === '') toast('No link on the clipboard — copy a link first (Share → Copy link), then try again.', { timeout: 6000 });
-      else openAddLink({ hint: 'The browser didn’t allow reading the clipboard. Long-press the field below and tap Paste.' });
-    },
+    onclick: pasteLink,
   }, icon('paste'), label);
 }
 
